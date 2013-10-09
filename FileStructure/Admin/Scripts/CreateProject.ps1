@@ -16,6 +16,9 @@ $scriptFolder = Split-Path -Path $MyInvocation.MyCommand.Path -Parent
 # Sanity check to make sure this script is being executed in the intended folder structure.  The Data folder doesn't have to exist, but if the
 # script's folder doesn't end with "Admin\Scripts", throw an error.
 
+# TODO: Per discussions with client, folder structure may be changed around a bit.  Script will be updated to get the root data folder from a config
+# file instead of making assumptions about paths relative to the script's location.
+
 if ($scriptFolder -notmatch '(.+)\\Admin\\Scripts\\?$')
 {
     throw "$($MyInvocation.ScriptName) script is not located in the expected folder structure (which must end in \admin\scripts\)."
