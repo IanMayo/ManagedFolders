@@ -168,6 +168,27 @@ ForEach-Object {
         Copy-Item -Path (Join-Path -Path $subjectTemplateFolder -ChildPath '*') -Destination $subjectFolder -Force -Recurse -Container -ErrorAction Stop
         
         # TODO:  Possibly generate "New Project Here.bat" file for this location, which will call the corresponding PowerShell script in the Admin\Scripts directory.
+        
+        # Set permissions on initial contents of Subject folder.
+        Get-ChildItem -Path $subjectFolder |
+        Where-Object { $_.PSIsContainer } |
+        ForEach-Object {
+            $item = $_
+            $acl = Get-Acl -Path $item.FullName -ErrorAction Stop
+
+            $ace = New-Object System.Security.AccessControl.FileSystemAccessRule(
+                'Everyone',
+                'FullControl',
+                'ContainerInherit, ObjectInherit',
+                'None',
+                'Allow'
+            )
+
+            $acl.AddAccessRule($ace)
+
+            Set-Acl -Path $item.FullName -AclObject $acl -ErrorAction Stop
+        }
+
 
         Write-Verbose "Subject folder '$subjectFolder' created successfully.`r`n"
     }
