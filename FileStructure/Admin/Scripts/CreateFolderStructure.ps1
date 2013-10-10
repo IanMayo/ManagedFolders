@@ -8,6 +8,9 @@ directory (which should be \Admin\scripts).
 
 If the directory specified by that path already exists, do nothing?  Display an error?
 
+From IAN: at some point in the future this script will perform create AND verify. When that happens, it's quite likely that
+directories will already exist.  We do nothing when that happens.
+
 If it doesn't exist, create it, then copy in the contents of ..\SubjectTemplate\ .
 
 #>

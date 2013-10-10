@@ -53,6 +53,12 @@ if ($PSBoundParameters.ContainsKey('Name'))
     # Is the user required to enter a folder with that name?  Should the script check for that and
     # throw an error / re-prompt the user if it's wrong?  Or should the script just prepend the date
     # information to whatever the user enters?
+
+    # From IAN:  Our current 'best practice' is for the project folders to start with year/month, to help their
+    # future archiving.  So, I'd like to make it easy for them to follow this best-practice by 
+    # giving them a text-box that's pre-populated with "YYYYMM-", then they just put in the project title.
+    # I'd be happy enough with prepending the date, bit there seems a good chance that users may insert the 
+    # date themself, and end up with double-dates.
 }
 else
 {

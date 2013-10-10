@@ -26,6 +26,9 @@ function CheckFolder
     # but it will probably need an update shortly to match the more detailed requirements.  It just means changing the current unordered lists at each
     # level of "subject" folder into <H1>, <H2>, etc, and adding an extra function to enumerate the contents of subject folders (two levels deep) to add
     # unordered lists.
+    #
+    # From IAN:  No, I had to change the format from H1 to UL, in order to use a "display as tree" JS utility. I've removed the PDF from the repo,
+    # the repo wiki version is now the 'master'. Sorry for any confusion...
 
     [CmdletBinding()]
     param (
