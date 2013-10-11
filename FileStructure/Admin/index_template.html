@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="Ian Mayo">
+
+  <title>Directory Listing</title>
+
+  <!-- Bootstrap core CSS -->
+  <link href="bootstrap/css/bootstrap.slate.css" rel="stylesheet">
+
+  <!-- Custom styles for this template -->
+  <style  type="text/css">
+    /* Move down content because we have a fixed navbar that is 50px tall */
+    body {
+      padding-top: 50px;
+      padding-bottom: 20px;
+    }
+    #dirListing a
+    {
+      padding-left:5px;
+      color: #6d93c7;
+    }
+
+    /* formatting for the tree/leaf selectors  */
+    li{
+    /*  list-style-type:none; */
+      list-style: none;
+    }
+    li.status-closed.parent:before {
+      list-style: none;
+      content: "+ ";
+    }
+
+    li.status-open.parent:before {
+      list-style: none;
+      content: "- ";
+    }
+
+    /* suggest that it's possible to drill-down */
+    #dirListing li.parent{
+      cursor:pointer;
+    }
+    #dirListing li{
+      cursor: default;
+    }
+
+    /* support for expand/collapse formatting */
+    #dirListing li.status-open > ul {
+      display: block;
+    }
+    #dirListing li.status-closed > ul {
+      display: none;
+    }
+
+    /* cursor style to suggest to use that they can click on list elements
+    #dirListing li.parent { cursor: pointer;}*/
+  </style>
+
+  <script src="bootstrap/js/jquery.js"></script>
+  <script type="text/javascript" language="javascript">
+    $(function(){
+      // Test set the status-closed classes
+      $('#dirListing li').addClass('status-open');
+
+
+      // make the item's clickable
+      $('#dirListing').on('click','li', function(e){
+        var self = $(e.target);
+        if(self.is('li')){
+          if(self.hasClass('status-closed')){
+            self.removeClass('status-closed').addClass('status-open');
+          }
+          else{
+            self.find('li.status-open').andSelf().removeClass('status-open').addClass('status-closed');
+          }
+          return false;
+        }
+      });
+
+      /* provide a class to use a tree/leaf parent selector */
+      $("li:has(ul)").addClass( "parent" );
+
+      /* give the directory browse links a fancy icon */
+      $("#dirListing a").addClass( "glyphicon glyphicon-eye-open" );
+
+
+    });
+  </script>
+
+</head>
+
+<body>
+
+<div class="navbar navbar-inverse navbar-fixed-top">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="#">File Listing</a>
+    </div>
+    <div class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <!-- INDEX_START -->
+        <li><a href="#Finance">Finance</a></li>
+        <li><a href="#Marketing"> Marketing </a></li>
+        <li><a href="#Sales"> Sales </a></li>
+        <li><a href="#Management"> Management </a></li>
+        <!-- INDEX_END -->
+      </ul>
+      <form class="navbar-form navbar-right">
+        <div class="form-group pull-right">
+          <input type="search" placeholder="Search here" class="form-control">
+        </div>
+      </form>
+    </div><!--/.navbar-collapse -->
+  </div>
+</div>
+
+<!-- Main jumbotron for a primary marketing message or call to action -->
+<div class="jumbotron">
+  <div class="container">
+    <h1>Data Explorer</h1>
+    <p>This tree is automatically produced by walking the file store every evening. Click on the <span
+            class="glyphicon glyphicon-eye-open">  </span> link to
+      navigate directly to that folder.</p>
+    <p><a class="btn btn-primary btn-lg">Learn more &raquo;</a></p>
+  </div>
+</div>
+
+<div class="container">
+  <div class="pull-right">
+    <div class="btn-group">
+      <button type="button" class="btn btn-default">Expand all</button>
+      <button type="button" class="btn btn-default">Collapse all</button>
+    </div>
+  </div>
+  <hr/>
+  <ul id="dirListing">
+    <!-- LISTING_START -->
+    <li id="Finance">Finance <a href="#"></a>
+      <ul>
+        <li>Audit<a href="#"></a>
+        </li>
+        <li>Policy<a href="#"></a>
+          <ul>
+            <li>Local<a href="#"></a></li>
+            <li class="recent">External<a href="#"></a></li>
+          </ul>
+        </li>
+      </ul>
+    </li>
+
+    <li id="Marketing">Marketing<a href="#"></a>
+      <ul>
+        <li>In Year<a href="#"></a>
+          <ul>
+            <li class="recent">Internal (UK)<a href="#"></a></li>
+            <li>Internal (International)<a href="#"></a></li>
+            <li>External<a href="#"></a></li>
+          </ul>
+        </li>
+        <li>Long Term<a href="#"></a></li>
+      </ul>
+    </li>
+    <li id="Sales">Sales<a href="#"></a>
+      <ul>
+        <li>Internal<a href="#"></a></li>
+        <li>External
+          <ul>
+            <li>National<a href="#"></a></li>
+            <li>International<a href="#"></a></li>
+          </ul>
+        </li>
+      </ul>
+    </li>
+    <li id="Management">Management<a href="#"></a>
+      <ul>
+        <li>Senior<a href="#"></a>
+          <ul>
+            <li>Procedures<a href="#"></a>
+              <ul>
+                <li class="recent">Regulatory<a href="#"></a></li>
+                <li>Voluntary<a href="#"></a></li>
+              </ul>
+            </li>
+            <li>Strategy<a href="#"></a></li>
+            <li>Admin<a href="#"></a></li>
+          </ul>
+        </li>
+        <li>Junior<a href="#"></a>
+          <ul>
+            <li>Planning<a href="#"></a></li>
+            <li>Entertainment<a href="#"></a></li>
+          </ul>
+        </li>
+      </ul>
+    </li>
+    <!-- LISTING_END -->
+  </ul>
+
+
+  <hr>
+
+  <footer>
+    <p>&copy; Ian 2013</p>
+    <!-- TIMESTAMP_START -->
+    <div id="timestamp">20131012 14:45</div>
+    <!-- TIMESTAMP_END -->
+  </footer>
+</div> <!-- /container -->
+
+
+<!-- Bootstrap core JavaScript
+================================================== -->
+<!-- Placed at the end of the document so the pages load faster -->
+<script src="bootstrap/js/bootstrap.min.js"></script>
+</body>
+</html>
