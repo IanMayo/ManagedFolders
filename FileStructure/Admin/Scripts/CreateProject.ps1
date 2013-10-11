@@ -4,12 +4,68 @@
 param (
     [Parameter(Mandatory = $true)]
     [System.String]
-    $Path,
-
-    [ValidateNotNullOrEmpty()]
-    [System.String]
-    $Name
+    $Path
 )
+
+function Get-ProjectName
+{
+    # Prompts the user to enter a project name via a pop-up window.
+
+    $Form = New-Object System.Windows.Forms.Form 
+    $Form.Text = "Enter Project Name"
+    $Form.Size = New-Object System.Drawing.Size(300,200) 
+    $Form.StartPosition = "CenterScreen"
+
+    $OKButton = New-Object System.Windows.Forms.Button
+    $OKButton.Location = New-Object System.Drawing.Size(75,120)
+    $OKButton.Size = New-Object System.Drawing.Size(75,23)
+    $OKButton.Text = "OK"
+    $OKButton.Add_Click({ $Form.Close() })
+    $OKButton.DialogResult = 'OK'
+    $Form.Controls.Add($OKButton)
+    $Form.AcceptButton = $OKButton
+
+    $CancelButton = New-Object System.Windows.Forms.Button
+    $CancelButton.Location = New-Object System.Drawing.Size(150,120)
+    $CancelButton.Size = New-Object System.Drawing.Size(75,23)
+    $CancelButton.Text = "Cancel"
+    $CancelButton.Add_Click({ $Form.Close() })
+    $CancelButton.DialogResult = 'Cancel'
+    $Form.Controls.Add($CancelButton)
+    $Form.CancelButton = $CancelButton
+
+    $Label = New-Object System.Windows.Forms.Label
+    $Label.Location = New-Object System.Drawing.Size(10,20) 
+    $Label.Size = New-Object System.Drawing.Size(280,20) 
+    $Label.Text = "Enter a project name (should begin with YYYYMM- )"
+    $Form.Controls.Add($Label) 
+
+    $TextBox = New-Object System.Windows.Forms.TextBox 
+    $TextBox.Location = New-Object System.Drawing.Size(10,40) 
+    $TextBox.Size = New-Object System.Drawing.Size(260,20)
+    $TextBox.Text = Get-Date -Format 'yyyyMM-'
+    $Form.Controls.Add($TextBox) 
+
+    $Form.Topmost = $True
+
+    $Form.Add_Shown({ $Form.Activate(); $null = $TextBox.Focus(); $TextBox.SelectionStart = 100 })
+    $result = $Form.ShowDialog()
+
+    if ($result -eq 'OK')
+    {
+        return $TextBox.Text
+    }
+}
+
+try
+{
+    $null = [System.Reflection.Assembly]::LoadWithPartialName("System.Drawing") 
+    $null = [System.Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms") 
+}
+catch
+{
+    throw
+}
 
 $scriptFolder = Split-Path -Path $MyInvocation.MyCommand.Path -Parent
 
@@ -34,6 +90,11 @@ if (-not (Test-Path -Path $projectTemplateFolder -PathType Container))
     throw New-Object System.IO.DirectoryNotFoundException($projectTemplateFolder)
 }
 
+if ($Path -notmatch '\\Projects\\?$')
+{
+    $Path = Join-Path -Path $Path -ChildPath 'Projects'
+}
+
 # Validate user input
 if (-not (Test-Path -Path $Path -PathType Container))
 {
@@ -42,43 +103,25 @@ if (-not (Test-Path -Path $Path -PathType Container))
 
 $invalidChars = [System.IO.Path]::GetInvalidFileNameChars()
 
-if ($PSBoundParameters.ContainsKey('Name'))
+while ($true)
 {
-    if ($Name.IndexOfAny($invalidChars) -ge 0)
+    $projectName = Get-ProjectName
+
+    if ($null -eq $projectName)
     {
-        throw "The Name argument ('$Name') contains invalid characters."
+        exit 0
     }
 
-    # TODO:  Requirements doc mentions project folder starts with today's year/month in YYYYMM format.
-    # Is the user required to enter a folder with that name?  Should the script check for that and
-    # throw an error / re-prompt the user if it's wrong?  Or should the script just prepend the date
-    # information to whatever the user enters?
-
-    # From IAN:  Our current 'best practice' is for the project folders to start with year/month, to help their
-    # future archiving.  So, I'd like to make it easy for them to follow this best-practice by 
-    # giving them a text-box that's pre-populated with "YYYYMM-", then they just put in the project title.
-    # I'd be happy enough with prepending the date, bit there seems a good chance that users may insert the 
-    # date themself, and end up with double-dates.
-}
-else
-{
-    while ($true)
+    if ($projectName.IndexOfAny($invalidChars) -ge 0)
     {
-        $Name = Read-Host -Prompt 'Enter a new project name'
-
-        if ($Name.IndexOfAny($invalidChars) -ge 0)
-        {
-            Write-Host "Value '$Name' contains invalid characters.  Please try again."
-            continue
-        }
-
-        # TODO:  Again, should the script either verify or prepend the YYYYMM text at the start of the project name?
-
-        break
+        $null = [System.Windows.Forms.MessageBox]::Show("Value '$projectName' contains invalid characters.  Please try again.", 'Invalid Project Name', 'OK')
+        continue
     }
+
+    break
 }
 
-$projectPath = Join-Path -Path $Path -ChildPath $Name
+$projectPath = Join-Path -Path $Path -ChildPath $projectName
 
 try
 {
