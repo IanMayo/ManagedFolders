@@ -39,6 +39,10 @@
       content: "- ";
     }
 
+    li.search-fail {
+    	display: none;
+    }
+
     /* suggest that it's possible to drill-down */
     #dirListing li.parent{
       cursor:pointer;
@@ -62,11 +66,9 @@
   <script src="bootstrap/js/jquery.js"></script>
   <script type="text/javascript" language="javascript">
     $(function(){
-      // Test set the status-closed classes
-      $('#dirListing li').addClass('status-open');
 
 
-      // make the item's clickable
+      // make the items clickable
       $('#dirListing').on('click','li', function(e){
         var self = $(e.target);
         if(self.is('li')){
@@ -79,7 +81,38 @@
           return false;
         }
       });
+      $('#search').on('keyup',function(e){
+	var val = $(this).val().toLowerCase();
+	if(val.length >= 3){
+		$('#dirListing .status-open').removeClass('status-open').addClass('status-closed');
+		$('#dirListing li > span')
+			.filter(function(){
+				return $(this).text().toLowerCase().indexOf(val) >= 0;
+				})
+			.parents('li').addBack()
+				.removeClass('status-closed').addClass('status-open').addClass('search-match');
+		$('#dirListing li.status-open li:not(.search-match)').removeClass('status-open').addClass('status-closed search-fail');
+		}
+	else{
+		$('#dirListing .status-closed').removeClass('status-closed').addClass('status-open');
+		$('#dirListing').find('.search-match, .search-fail').removeClass('search-match search-fail');
+		}
+	});
+      $('.expand-all').on('click',function(e){
+      	$('#dirListing li').removeClass('status-closed search-match search-fail').addClass('status-open');
+	$('#search').val('');
+      	});
+      $('.collapse-all').on('click',function(e){
+      	$('#dirListing li').removeClass('status-open search-match search-fail').addClass('status-closed');
+	$('#search').val('');
+      	});
 
+
+      //
+      //// Javascript run to add classes on the tree. Can they be added serverside?
+      //
+      // Test set the status-closed classes
+      $('#dirListing li').addClass('status-open');
       /* provide a class to use a tree/leaf parent selector */
       $("li:has(ul)").addClass( "parent" );
 
@@ -115,7 +148,7 @@
       </ul>
       <form class="navbar-form navbar-right">
         <div class="form-group pull-right">
-          <input type="search" placeholder="Search here" class="form-control">
+          <input id="search" type="search" placeholder="Search here" class="form-control">
         </div>
       </form>
     </div><!--/.navbar-collapse -->
@@ -136,14 +169,14 @@
 <div class="container">
   <div class="pull-right">
     <div class="btn-group">
-      <button type="button" class="btn btn-default">Expand all</button>
-      <button type="button" class="btn btn-default">Collapse all</button>
+      <button type="button" class="btn btn-default expand-all">Expand all</button>
+      <button type="button" class="btn btn-default collapse-all">Collapse all</button>
     </div>
   </div>
   <hr/>
   <ul id="dirListing">
     <!-- LISTING_START -->
-    <li id="Finance">Finance <a href="#"></a>
+    <li id="Finance">Finance<a href="#"></a>
       <ul>
         <li>Audit<a href="#"></a>
         </li>
