@@ -293,7 +293,7 @@ function Get-HtmlIndexCode
                 $childPath = Join-Path -Path $Path -ChildPath $childNode.Name
 
                 $uri = New-Object System.Uri($childPath)
-                $code = "$listTag<span><a href=""$($uri.AbsoluteUri)"">$($childNode.Name)</a></span>"
+                $code = "$listTag<span>$($childNode.Name)</span><a href=""$($uri.AbsoluteUri)""></a>"
                 $null = $stringBuilder.Append(("{0,$Indent}{1}" -f ' ', $code))
 
                 if ($childNode.Children.Count -gt 0)
@@ -312,7 +312,7 @@ function Get-HtmlIndexCode
                 }
 
                 $null = $stringBuilder.AppendLine('</li>')
-            }    
+            }
         }
 
         if ($null -eq $Html)
