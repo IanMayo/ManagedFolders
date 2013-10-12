@@ -77,7 +77,13 @@ $scriptFolder = Split-Path -Path $MyInvocation.MyCommand.Path -Parent
 
 if ($scriptFolder -notmatch '(.+)\\Admin\\Scripts\\?$')
 {
-    throw "$($MyInvocation.ScriptName) script is not located in the expected folder structure (which must end in \admin\scripts\)."
+    $null = [System.Windows.Forms.MessageBox]::Show(
+        "Error: $($MyInvocation.ScriptName) script is not located in the expected folder structure (which must end in \admin\scripts\).",
+        'Script Path Error',
+        'OK'
+    )
+
+    exit 1
 }
 
 $rootFolder = $matches[1]
@@ -87,7 +93,13 @@ $projectTemplateFolder = Join-Path -Path $rootFolder -ChildPath 'Admin\ProjectTe
 
 if (-not (Test-Path -Path $projectTemplateFolder -PathType Container))
 {
-    throw New-Object System.IO.DirectoryNotFoundException($projectTemplateFolder)
+    $null = [System.Windows.Forms.MessageBox]::Show(
+        "Error: Project template directory '$projectTemplateFolder' was not found.",
+        'Project Template Folder Missing',
+        'OK'
+    )
+
+    exit 1
 }
 
 if ($Path -notmatch '\\Projects\\?$')
@@ -98,7 +110,13 @@ if ($Path -notmatch '\\Projects\\?$')
 # Validate user input
 if (-not (Test-Path -Path $Path -PathType Container))
 {
-    throw New-Object System.IO.DirectoryNotFoundException($Path)
+    $null = [System.Windows.Forms.MessageBox]::Show(
+        "Error: Projects directory '$Path' was not found.",
+        'Projects Folder Missing',
+        'OK'
+    )
+
+    exit 1
 }
 
 $invalidChars = [System.IO.Path]::GetInvalidFileNameChars()
@@ -114,36 +132,52 @@ while ($true)
 
     if ($projectName.IndexOfAny($invalidChars) -ge 0)
     {
-        $null = [System.Windows.Forms.MessageBox]::Show("Value '$projectName' contains invalid characters.  Please try again.", 'Invalid Project Name', 'OK')
+        $null = [System.Windows.Forms.MessageBox]::Show(
+            "Value '$projectName' contains invalid characters.  Please try again.",
+            'Invalid Project Name',
+            'OK'
+        )
+
+        continue
+    }
+    elseif ($projectName -eq [string]::Empty)
+    {
+        $null = [System.Windows.Forms.MessageBox]::Show(
+            "Project name cannot be blank.  Please try again.",
+            'Invalid Project Name',
+            'OK'
+        )
+
+        continue        
+    }
+    elseif (Test-Path -Path ($projectPath = Join-Path -Path $Path -ChildPath $projectName))
+    {
+        $null = [System.Windows.Forms.MessageBox]::Show(
+            "A project named '$projectName' already exists in this location.  Please try again.",
+            'Project Already Exists',
+            'OK'
+        )
+
         continue
     }
 
     break
 }
 
-$projectPath = Join-Path -Path $Path -ChildPath $projectName
-
 try
 {
     $null = New-Item -Path $projectPath -ItemType Directory -ErrorAction Stop
-
-    $acl = Get-Acl -Path $projectPath -ErrorAction Stop
-
-    $ace = New-Object System.Security.AccessControl.FileSystemAccessRule(
-        'Everyone',
-        'FullControl',
-        'ContainerInherit, ObjectInherit',
-        'None',
-        'Allow'
-    )
-
-    $acl.AddAccessRule($ace)
-
-    Set-Acl -Path $projectPath -AclObject $acl -ErrorAction Stop
-
     Copy-Item -Path (Join-Path -Path $projectTemplateFolder -ChildPath '*') -Destination $projectPath -Recurse -Force -Container -ErrorAction Stop
 }
 catch
 {
-    throw
+    $null = [System.Windows.Forms.MessageBox]::Show(
+        "Error:  Could not create or populate new project folder:`r`n$($_.Exception.Message)",
+        'Error Creating New Project',
+        'OK'
+    )
+
+    exit 1
 }
+
+exit 0

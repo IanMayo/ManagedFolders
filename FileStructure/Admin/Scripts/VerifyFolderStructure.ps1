@@ -4,7 +4,14 @@
 param (
     [ValidateNotNullOrEmpty()]
     [System.String]
-    $CsvPath
+    $CsvPath,
+
+    [ValidateNotNullOrEmpty()]
+    [System.String]
+    $LogFile = $null,
+
+    [switch]
+    $SendMsg
 )
 
 Add-Type -TypeDefinition @'
@@ -28,7 +35,15 @@ function ConfigureSubjectFolder
         # Copy template contents.
         Copy-Item -Path (Join-Path -Path $script:subjectTemplateFolder -ChildPath '*') -Destination $Directory.FullName -Force -Recurse -Container -ErrorAction Stop
         
-        # TODO:  Possibly generate "New Project Here.bat" file for this location, which will call the corresponding PowerShell script in the Admin\Scripts directory.
+        # Generate "New Project Here" shortcut.
+        $shell = New-Object -ComObject WScript.Shell
+        
+        $shortcutPath = Join-Path -Path $Directory.FullName -ChildPath 'New Project Here.lnk'
+        $shortcut = $shell.CreateShortcut($shortcutPath)
+
+        $shortcut.TargetPath = "$PSHOME\powershell.exe"
+        $shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -Command & '$script:scriptFolder\CreateProject.ps1' -Path '$($Directory.FullName)'"
+        $shortcut.Save()
         
         # Set permissions on initial contents of Subject folder.
         foreach ($item in $Directory.GetDirectories())
@@ -60,15 +75,7 @@ function CheckFolder
     # Similar to Compare-Object, outputs PSObjects for differences containing the path to the folder that's different, and a value indicating
     # whether the folder is only on disk or only in the CSV file.
 
-    # Also appends HTML code for the index file into the StringBuilder specified by the $Html parameter, if present.
-
-    # TODO:  The HTML format in the sample index.html and in the pdf requirements document are different.  I drafted this code based on the sample file,
-    # but it will probably need an update shortly to match the more detailed requirements.  It just means changing the current unordered lists at each
-    # level of "subject" folder into <H1>, <H2>, etc, and adding an extra function to enumerate the contents of subject folders (two levels deep) to add
-    # unordered lists.
-    #
-    # From IAN:  No, I had to change the format from H1 to UL, in order to use a "display as tree" JS utility. I've removed the PDF from the repo,
-    # the repo wiki version is now the 'master'. Sorry for any confusion...
+    # Also populates the ExistsOnDisk and Age fields of any nodes in the tree, for use in generating HTML code later.
 
     [CmdletBinding()]
     param (
@@ -78,14 +85,7 @@ function CheckFolder
 
         [Parameter(Mandatory = $true)]
         [psobject]
-        $Node,
-
-        [Parameter(Mandatory = $true)]
-        [System.Text.StringBuilder]
-        $Html,
-
-        [System.UInt32]
-        $Indent = 0
+        $Node
     )
 
     $childFoldersChecked = @{}
@@ -106,34 +106,13 @@ function CheckFolder
             continue
         }
         
-        $uri = New-Object System.Uri($dirInfo.FullName)
-
-        if (((Get-Date) - $dirInfo.CreationTime).TotalDays -gt 30)
-        {
-            $listTag = '<li>'
-        }
-        else
-        {
-            $listTag = '<li class="recent">'
-        }
-
-        $code = "$listTag<a href=""$($uri.AbsoluteUri)"">$($dirInfo.Name)</a>"
-        $null = $Html.Append(("{0,$Indent}{1}" -f ' ', $code))
+        $childNode.ExistsOnDisk = $true
+        $childNode.Age = (Get-Date) - $dirInfo.CreationTime
 
         # If this is not a "leaf node" of the CSV file (in other words, a subject folder), recursively check its contents
         if ($childNode.Children.Count -gt 0)
         {
-            $null = $Html.AppendLine()
-
-            $Indent += 2
-            $null = $Html.AppendLine(("{0,$Indent}<ul>" -f ' '))
-                
-            CheckFolder -Directory $dirInfo -Node $childNode -Html $Html -Indent ($Indent + 2)
-                
-            $null = $Html.AppendLine("{0,$Indent}</ul>" -f ' ')
-            $Indent -= 2
-
-            $null = $Html.Append(("{0,$Indent}" -f ' '))
+            CheckFolder -Directory $dirInfo -Node $childNode
         }
         else
         {
@@ -146,8 +125,6 @@ function CheckFolder
                 Write-Error -ErrorRecord $_
             }
         }
-
-        $null = $Html.AppendLine('</li>')
 
     } # end foreach ($dirInfo in $Directory.GetDirectories())
 
@@ -176,24 +153,13 @@ function CheckFolder
 
             continue
         }
+        
+        $childNode.ExistsOnDisk = $true
+        $childNode.Age = (Get-Date) - $dirInfo.CreationTime
 
-        $uri = New-Object System.Uri($path)
-        $code = "<li class=`"recent`"><a href=""$($uri.AbsoluteUri)"">$($childNode.Name)</a>"
-        $null = $Html.Append(("{0,$Indent}{1}" -f ' ', $code))
-                
         if ($childNode.Children.Count -gt 0)
         {
-            $null = $Html.AppendLine()
-
-            $Indent += 2
-            $null = $Html.AppendLine(("{0,$Indent}<ul>" -f ' '))
-                
-            CheckFolder -Directory $dirInfo -Node $childNode -Html $Html -Indent ($Indent + 2)
-                
-            $null = $Html.AppendLine("{0,$Indent}</ul>" -f ' ')
-            $Indent -= 2
-
-            $null = $Html.Append(("{0,$Indent}" -f ' '))
+            CheckFolder -Directory $dirInfo -Node $childNode
         }
         else
         {
@@ -207,11 +173,107 @@ function CheckFolder
             }
         }
 
-        $null = $Html.AppendLine('</li>')
-
     } # end foreach ($childNode in $node.Children.Values)
 
 }# end function CheckFolder
+
+function Get-HtmlIndexCode
+{
+    # Walks the tree of objects starting with $Node, generating HTML code to be injected into the
+    # appropriate places of a template file.
+
+    # If the -TopLevelShortcuts switch is specified, the function is not recursive, and has
+    # slightly different links (pointing to anchors on this page, rather than a file:/// URI
+    # to the folders themselves.)
+
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory = $true)]
+        [System.String]
+        $Path,
+
+        [Parameter(Mandatory = $true)]
+        [psobject]
+        $Node,
+
+        [System.Text.StringBuilder]
+        $Html = $null,
+
+        [System.UInt32]
+        $Indent = 0,
+
+        [switch]
+        $TopLevelShortcuts
+    )
+
+    if ($null -ne $Html)
+    {
+        $stringBuilder = $Html
+    }
+    else
+    {
+        $stringBuilder = New-Object System.Text.StringBuilder
+    }
+
+    if ($TopLevelShortcuts)
+    {
+        foreach ($childNode in $Node.Children.Values)
+        {
+            if ($childNode.ExistsOnDisk)
+            {
+                $null = $stringBuilder.AppendLine(
+                    "<li><a href=""#$($childNode.Name)"">$($childNode.Name)</a></li>"
+                )
+            }
+        }
+
+        Write-Output $stringBuilder.ToString()
+    }
+
+    else
+    {
+        foreach ($childNode in $Node.Children.Values)
+        {
+            if ($childNode.ExistsOnDisk)
+            {
+                $listTag = '<li>'
+                
+                if ($childNode.Age -is [System.Timespan] -and $childNode.Age.TotalDays -gt 30)
+                {
+                    $listTag = '<li class="recent">'
+                }
+
+                $childPath = Join-Path -Path $Path -ChildPath $childNode.Name
+
+                $uri = New-Object System.Uri($childPath)
+                $code = "$listTag<a href=""$($uri.AbsoluteUri)"">$($childNode.Name)</a>"
+                $null = $stringBuilder.Append(("{0,$Indent}{1}" -f ' ', $code))
+
+                if ($childNode.Children.Count -gt 0)
+                {
+                    $null = $stringBuilder.AppendLine()
+
+                    $Indent += 2
+                    $null = $stringBuilder.AppendLine(("{0,$Indent}<ul>" -f ' '))
+
+                    $null = Get-HtmlIndexCode -Path $childPath -Node $childNode -Html $stringBuilder -Indent ($Indent + 2)
+
+                    $null = $stringBuilder.AppendLine("{0,$Indent}</ul>" -f ' ')
+                    $Indent -= 2
+
+                    $null = $stringBuilder.Append(("{0,$Indent}" -f ' '))
+                }
+
+                $null = $stringBuilder.AppendLine('</li>')
+            }    
+        }
+
+        if ($null -eq $Html)
+        {
+            Write-Output $stringBuilder.ToString()
+        }
+    }
+}
 
 # TODO:  For now, this is the same code used in CreateFolderStructure.ps1, but we're talking about changing this to a config file that contains data
 # about the root folder path.  Sticking with the original code for the moment, to get the rest of the script development done.
@@ -220,6 +282,21 @@ function CheckFolder
 
 $scriptFolder = Split-Path -Path $MyInvocation.MyCommand.Path -Parent
 
+# Set up log file, if requested.
+
+if ($null -ne $LogFile)
+{
+    try
+    {
+        Import-Module $scriptFolder\Logging -ErrorAction Stop
+        $LogFilePreference = $LogFile
+    }
+    catch
+    {
+        throw
+    }
+}
+
 if (-not $PSBoundParameters.ContainsKey('CsvPath'))
 {
     $CsvPath = Join-Path -Path $scriptFolder -ChildPath 'Structure.csv'
@@ -227,7 +304,8 @@ if (-not $PSBoundParameters.ContainsKey('CsvPath'))
 
 if (-not (Test-Path -Path $CsvPath))
 {
-    throw New-Object System.IO.FileNotFoundException($CsvPath)
+    Write-ErrorLog -Exception (New-Object System.IO.FileNotFoundException($CsvPath))
+    exit 1
 }
 
 # Sanity check to make sure this script is being executed in the intended folder structure.  The Data folder doesn't have to exist, but if the
@@ -235,7 +313,8 @@ if (-not (Test-Path -Path $CsvPath))
 
 if ($scriptFolder -notmatch '(.+)\\Admin\\Scripts\\?$')
 {
-    throw "$($MyInvocation.ScriptName) script is not located in the expected folder structure (which must end in \admin\scripts\)."
+    Write-ErrorLog "$($MyInvocation.ScriptName) script is not located in the expected folder structure (which must end in \admin\scripts\)."
+    exit 1
 }
 
 $rootFolder = $matches[1]
@@ -245,7 +324,7 @@ $subjectTemplateFolder = Join-Path -Path $rootFolder -ChildPath 'Admin\SubjectTe
 
 if (-not (Test-Path -Path $subjectTemplateFolder -PathType Container))
 {
-    throw New-Object System.IO.DirectoryNotFoundException($subjectTemplateFolder)
+    Write-ErrorLog -Exception (New-Object System.IO.DirectoryNotFoundException($subjectTemplateFolder))
 }
 
 Write-Verbose 'Verifying Data folder and permissions...'
@@ -261,7 +340,8 @@ if (-not (Test-Path -Path $dataFolder -PathType Container))
     }
     catch
     {
-        throw
+        Write-ErrorLog -ErrorRecord $_
+        exit 1
     }
 }
 
@@ -314,7 +394,8 @@ try
 }
 catch
 {
-    throw
+    Write-ErrorLog -ErrorRecord $_
+    exit 1
 }
 
 # The idea is to compare what's in the CSV file with what's actually on disk under the root folder.  If any folders specified in the CSV are missing, or
@@ -325,6 +406,8 @@ catch
 $rootNode = New-Object psobject -Property @{
     Name = Split-Path -Path $dataFolder -Leaf
     Children = @{}
+    ExistsOnDisk = $true
+    Age = $null
 }
 
 Import-Csv -Path $CsvPath -ErrorAction Stop | 
@@ -349,6 +432,8 @@ ForEach-Object {
             $child = New-Object psobject -Property @{
                 Name = $childName
                 Children = @{}
+                ExistsOnDisk = $false
+                Age = $null
             }
 
             $node.Children.Add($childName, $child)
@@ -377,7 +462,8 @@ try
 }
 catch
 {
-    throw
+    Write-ErrorLog -ErrorRecord $_
+    exit 1
 }
 
 $null = $html.AppendLine('<h1>Directory listing</h1>').AppendLine()
@@ -386,35 +472,56 @@ $null = $html.AppendLine('<ul id="dirListing">')
 # Now recursively enumerate folders under $dataFolder, looking for differences.  This function also generates HTML code as it goes, appending it to the
 # $html StringBuilder.
 
-$differences = CheckFolder -Directory $dataFolder -Node $rootNode -Html $html
+$differences = @(CheckFolder -Directory $dataFolder -Node $rootNode -ErrorAction SilentlyContinue -ErrorVariable Err)
 
-# TODO:  Write various options for reporting the differences.  For now, just output to the screen.
+$message = New-Object System.Text.StringBuilder
 
 if ($differences.Count -gt 0)
 {
-    Write-Warning "Differences between the disk's folder structure and the '$CsvPath' file were detected:"
+    $null = $message.AppendLine("Differences between the disk's folder structure and the '$CsvPath' file were detected:")
 
-    $onlyOnDisk = $differences |
-    Where-Object { $_.DifferenceType -eq [DifferenceType]::OnlyOnDisk } |
-    Select-Object -ExpandProperty Path
+    $onlyOnDisk = @(
+        $differences |
+        Where-Object { $_.DifferenceType -eq [DifferenceType]::OnlyOnDisk } |
+        Select-Object -ExpandProperty Path
+    )
 
-    $onlyInCsv = $differences |
-    Where-Object { $_.DifferenceType -eq [DifferenceType]::OnlyInCSV } |
-    Select-Object -ExpandProperty Path
+    $onlyInCsv = @(
+        $differences |
+        Where-Object { $_.DifferenceType -eq [DifferenceType]::OnlyInCSV } |
+        Select-Object -ExpandProperty Path
+    )
 
     if ($onlyOnDisk.Count -gt 0)
     {
-        Write-Warning "Folders that exist on disk, but not in the CSV file:`r`n$($onlyOnDisk | Out-String)"
+        $null = $message.AppendLine("`r`nFolders that exist on disk, but not in the CSV file:`r`n`r`n$($onlyOnDisk | Out-String)")
     }
 
     if ($onlyInCsv.Count -gt 0)
     {
-        Write-Warning "Folders that are defined in the CSV file, but were not found on disk:`r`n$($onlyInCsv | Out-String)"
+        $null = $message.AppendLine("`r`nFolders that are defined in the CSV file, but were not found on disk:`r`n`r`n$($onlyInCsv | Out-String)")
+    }
+}
+
+if ($Err.Count -gt 0)
+{
+    $null = $message.AppendLine(
+        "`r`nThe following errors were encountered:`r`n$($Err | Out-String)"
+    )
+}
+
+if ($message.Length -gt 0)
+{
+    Write-Warning $message.ToString()
+    
+    if ($SendMsg)
+    {
+        $null = msg.exe * $message
     }
 }
 
 # Finish generating HTML and save index file.
-
+$null = $html.AppendLine((Get-HtmlIndexCode -Path $dataFolder -Node $rootNode))
 $null = $html.AppendLine('</ul>')
 
 try
@@ -423,7 +530,8 @@ try
 }
 catch
 {
-    throw
+    Write-ErrorLog -ErrorRecord $_
+    exit 1
 }
 
 Set-Content -Path (Join-Path -Path $rootFolder -ChildPath 'Admin\index.html') -Value $html.ToString() -Force
