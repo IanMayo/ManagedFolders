@@ -4,7 +4,7 @@
 param (
     [ValidateNotNullOrEmpty()]
     [System.String]
-    $CsvPath,
+    $ConfigFile = $null,
 
     [ValidateNotNullOrEmpty()]
     [System.String]
@@ -13,6 +13,31 @@ param (
     [switch]
     $SendMsg
 )
+
+#region Utility Functions
+
+function Get-RelativePath
+{
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory = $true)]
+        [System.String]
+        $Path,
+
+        [Parameter(Mandatory = $true)]
+        [System.String]
+        $RelativeTo
+    )
+
+    $pattern = "^$([regex]::Escape($RelativeTo))\\?(.+)"
+
+    if ($Path -notmatch $pattern)
+    {
+        throw "Path '$Path' is not a child of path '$RelativeTo'."
+    }
+
+    return $matches[1]
+}
 
 Add-Type -TypeDefinition @'
     public enum DifferenceType {
@@ -85,13 +110,26 @@ function CheckFolder
 
         [Parameter(Mandatory = $true)]
         [psobject]
-        $Node
+        $Node,
+
+        [Parameter(Mandatory = $true)]
+        [System.String]
+        $RootPath,
+
+        [Object]
+        $IgnorePaths
     )
 
     $childFoldersChecked = @{}
 
     foreach ($dirInfo in $Directory.GetDirectories())
     {
+        $relativePath = Get-RelativePath -Path $dirInfo.FullName -RelativeTo $RootPath
+        if ($IgnorePaths -match "^\.?\\?$([regex]::Escape($relativePath))\\?$")
+        {
+            continue
+        }
+
         $childFoldersChecked[$dirInfo.Name] = $true
 
         $childNode = $Node.Children[$dirInfo.Name]
@@ -112,7 +150,7 @@ function CheckFolder
         # If this is not a "leaf node" of the CSV file (in other words, a subject folder), recursively check its contents
         if ($childNode.Children.Count -gt 0)
         {
-            CheckFolder -Directory $dirInfo -Node $childNode
+            CheckFolder -Directory $dirInfo -Node $childNode -RootPath $RootPath -IgnorePaths $IgnorePaths
         }
         else
         {
@@ -159,7 +197,7 @@ function CheckFolder
 
         if ($childNode.Children.Count -gt 0)
         {
-            CheckFolder -Directory $dirInfo -Node $childNode
+            CheckFolder -Directory $dirInfo -Node $childNode -RootPath $RootPath -IgnorePaths $IgnorePaths
         }
         else
         {
@@ -284,10 +322,75 @@ function Get-HtmlIndexCode
     }
 }
 
-# TODO:  For now, this is the same code used in CreateFolderStructure.ps1, but we're talking about changing this to a config file that contains data
-# about the root folder path.  Sticking with the original code for the moment, to get the rest of the script development done.
+function Import-IniFile
+{
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory = $true)]
+        [System.String]
+        $Path
+    )
 
-# Also, there's talk of combining this script with CreateFolderStructure.ps1.
+    New-Variable -Name UnnamedSection -Value '\\Unnamed//' -Option ReadOnly
+
+    if (-not (Test-Path -Path $Path -PathType Leaf))
+    {
+        throw New-Object System.IO.FileNotFoundException($Path)
+    }
+
+    $iniFile = @{}
+
+    $currentSection = $null
+
+    Get-Content -Path $Path -ErrorAction Stop |
+    ForEach-Object {
+        $line = $_
+
+        switch -Regex ($line)
+        {
+            # Comments
+            '^\s*;'
+            { }
+
+            # Sections
+            '^\s*\[(.+?)\]\s*$'
+            {
+                $sectionName = $matches[1]
+
+                if ($iniFile.ContainsKey($sectionName))
+                {
+                    $currentSection = $iniFile[$sectionName]
+                }
+                else
+                {
+                    $currentSection = @{}
+                    $iniFile.Add($sectionName, $currentSection)
+                }
+            }
+
+            # Key = Value pairs
+            '^\s*(.+?)\s*=\s*(.+?)\s*$'
+            {
+                $name = $matches[1]
+                $value = $matches[2]
+
+                if ($null -eq $currentSection)
+                {
+                    $currentSection = @{}
+                    $iniFile.Add($UnnamedSection, $currentSection)
+                }
+
+                $currentSection[$name] = $value
+            }
+        }
+    }
+
+    Write-Output $iniFile
+}
+
+#endregion
+
+#region Main script
 
 $scriptFolder = Split-Path -Path $MyInvocation.MyCommand.Path -Parent
 
@@ -306,41 +409,120 @@ if ($null -ne $LogFile)
     }
 }
 
-if (-not $PSBoundParameters.ContainsKey('CsvPath'))
+# Read configuration file
+
+if (-not $PSBoundParameters.ContainsKey('ConfigFile'))
 {
-    $CsvPath = Join-Path -Path $scriptFolder -ChildPath 'Structure.csv'
+    $ConfigFile = Join-Path -Path $scriptFolder -ChildPath 'config.ini'
 }
 
-if (-not (Test-Path -Path $CsvPath))
+if (-not (Test-Path -Path $ConfigFile))
 {
-    Write-ErrorLog -Exception (New-Object System.IO.FileNotFoundException($CsvPath))
+    Write-ErrorLog -Exception (New-Object System.IO.FileNotFoundException($ConfigFile))
     exit 1
 }
 
-# Sanity check to make sure this script is being executed in the intended folder structure.  The Data folder doesn't have to exist, but if the
-# script's folder doesn't end with "Admin\Scripts", throw an error.
+Write-Verbose "Reading configuration file '$ConfigFile'..."
 
-if ($scriptFolder -notmatch '(.+)\\Admin\\Scripts\\?$')
+try
 {
-    Write-ErrorLog "$($MyInvocation.ScriptName) script is not located in the expected folder structure (which must end in \admin\scripts\)."
+    $config = Import-IniFile -Path $ConfigFile -ErrorAction Stop
+    
+    if (-not $config.ContainsKey('Configuration'))
+    {
+        throw "Configuration file '$ConfigFile' does not contain the required [Configuration] section."
+    }
+}
+catch
+{
+    Write-ErrorLog -ErrorRecord $_
     exit 1
 }
 
-$rootFolder = $matches[1]
+# Fetch options from ini file, and make sure all required templates / directories exist.
 
-# Make sure the subject template folder exists
-$subjectTemplateFolder = Join-Path -Path $rootFolder -ChildPath 'Admin\SubjectTemplate'
+$paths = @(
+    New-Object psobject -Property @{
+        VariableName = 'csvPath'
+        Section = 'Configuration'
+        Value = 'CsvFile'
+        Default = Join-Path -Path $scriptFolder -ChildPath 'Structure.csv'
+        Type = 'Leaf'
+        Required = $true
+    }
 
-if (-not (Test-Path -Path $subjectTemplateFolder -PathType Container))
+    New-Object psobject -Property @{
+        VariableName = 'subjectTemplateFolder'
+        Section = 'Configuration'
+        Value = 'SubjectTemplate'
+        Default = Join-Path -Path $scriptFolder -ChildPath '..\SubjectTemplate'
+        Type = 'Container'
+        Required = $false
+    }
+
+    New-Object psobject -Property @{
+        VariableName = 'dataFolder'
+        Section = 'Configuration'
+        Value = 'DataFolder'
+        Default = Join-Path -Path $scriptFolder -ChildPath '..\..\..'
+        Type = 'Container'
+        Required = $false
+    }
+
+    New-Object psobject -Property @{
+        VariableName = 'indexTemplate'
+        Section = 'Configuration'
+        Value = 'HtmlTemplate'
+        Default = Join-Path -Path $scriptFolder -ChildPath '..\index_template.html'
+        Type = 'Leaf'
+        Required = $true
+    }
+
+    New-Object psobject -Property @{
+        VariableName = 'indexFile'
+        Section = 'Configuration'
+        Value = 'HtmlOutput'
+        Default = Join-Path -Path $scriptFolder -ChildPath '..\index.html'
+        Type = 'Leaf'
+        Required = $false
+    }
+)
+
+foreach ($var in $paths)
 {
-    Write-ErrorLog -Exception (New-Object System.IO.DirectoryNotFoundException($subjectTemplateFolder))
+    $temp = $config[$var.Section][$var.Value]
+    if ([string]::IsNullOrEmpty($temp))
+    {
+        $temp = $var.Default
+    }
+    elseif (-not [System.IO.Path]::IsPathRooted($temp))
+    {
+        $temp = Join-Path -Path $scriptFolder -ChildPath $temp
+    }
+
+    $temp = $PSCmdlet.GetUnresolvedProviderPathFromPSPath($temp)
+
+    Set-Variable -Name $var.VariableName -Value $temp -Force -Scope Script -Option ReadOnly
+
+    if ($var.Required -and -not (Test-Path -Path $temp -PathType $var.Type))
+    {
+        if ($var.Type -eq 'Container')
+        {
+            $exception = New-Object System.IO.DirectoryNotFoundException($temp)
+        }
+        else
+        {
+            $exception = New-Object System.IO.FileNotFoundException($temp)
+        }
+
+        Write-ErrorLog -Exception $exception
+        exit 1
+    }
 }
 
 Write-Verbose 'Verifying Data folder and permissions...'
 
 # Make sure Data folder exists, and has the proper permissions.
-$dataFolder = Join-Path -Path $rootFolder -ChildPath 'Data'
-
 if (-not (Test-Path -Path $dataFolder -PathType Container))
 {
     try
@@ -419,7 +601,7 @@ $rootNode = New-Object psobject -Property @{
     Age = $null
 }
 
-Import-Csv -Path $CsvPath -ErrorAction Stop | 
+Import-Csv -Path $csvPath -ErrorAction Stop | 
 ForEach-Object {
     $record = $_
 
@@ -453,8 +635,13 @@ ForEach-Object {
 }
 
 # Now recursively enumerate folders under $dataFolder, looking for differences.
+$ignorePaths = $config['IgnorePaths']
+if ($ignorePaths -is [hashtable])
+{
+    $ignorePaths = $ignorePaths.Values
+}
 
-$differences = @(CheckFolder -Directory $dataFolder -Node $rootNode -ErrorAction SilentlyContinue -ErrorVariable Err)
+$differences = @(CheckFolder -Directory $dataFolder -Node $rootNode -RootPath $dataFolder -IgnorePaths $ignorePaths -ErrorAction SilentlyContinue -ErrorVariable Err)
 
 # Finish generating HTML and save index file.
 $topLevelList = Get-HtmlIndexCode -Path $dataFolder -Node $rootNode -TopLevelShortcuts -Indent 8
@@ -462,7 +649,7 @@ $index = Get-HtmlIndexCode -Path $dataFolder -Node $rootNode -Indent 4
 
 $ignore = $false
 
-Get-Content -Path (Join-Path -Path $rootFolder -ChildPath 'Admin\index_template.html') -ErrorAction SilentlyContinue -ErrorVariable +Err |
+Get-Content -Path $indexTemplate -ErrorAction SilentlyContinue -ErrorVariable +Err |
 ForEach-Object {
     $line = $_
 
@@ -515,14 +702,14 @@ ForEach-Object {
         }
     }
 } |
-Set-Content -Path (Join-Path -Path $rootFolder -ChildPath 'Admin\index.html') -Force -ErrorAction SilentlyContinue -ErrorVariable +Err
+Set-Content -Path $indexFile -Force -ErrorAction SilentlyContinue -ErrorVariable +Err
 
 
 $message = New-Object System.Text.StringBuilder
 
 if ($differences.Count -gt 0)
 {
-    $null = $message.AppendLine("Differences between the disk's folder structure and the '$CsvPath' file were detected:")
+    $null = $message.AppendLine("Differences between the disk's folder structure and the '$csvPath' file were detected:")
 
     $onlyOnDisk = @(
         $differences |
@@ -564,3 +751,4 @@ if ($message.Length -gt 0)
     }
 }
 
+#endregion

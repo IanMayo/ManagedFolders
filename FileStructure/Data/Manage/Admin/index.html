@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <meta name="author" content="Ian Mayo">
+
+  <title>Directory Listing</title>
+
+  <!-- Bootstrap core CSS -->
+  <link href="bootstrap/css/bootstrap.slate.css" rel="stylesheet">
+
+  <!-- Custom styles for this template -->
+  <style  type="text/css">
+    /* Move down content because we have a fixed navbar that is 50px tall */
+    body {
+      padding-top: 50px;
+      padding-bottom: 20px;
+    }
+    #dirListing a
+    {
+      padding-left:5px;
+      color: #6d93c7;
+    }
+
+    /* formatting for the tree/leaf selectors  */
+    li{
+    /*  list-style-type:none; */
+      list-style: none;
+    }
+    li.status-closed.parent:before {
+      list-style: none;
+      content: "+ ";
+    }
+
+    li.status-open.parent:before {
+      list-style: none;
+      content: "- ";
+    }
+
+    li.search-fail {
+    	display: none;
+    }
+
+    .recent:before{
+        content:url(bootstrap/new.png);
+    }
+
+    .recent{
+      color: #fff587;
+    }
+
+    /* suggest that it's possible to drill-down */
+    #dirListing li.parent{
+      cursor:pointer;
+    }
+    #dirListing li{
+      cursor: default;
+    }
+
+    /* support for expand/collapse formatting */
+    #dirListing li.status-open > ul {
+      display: block;
+    }
+    #dirListing li.status-closed > ul {
+      display: none;
+    }
+
+    /* cursor style to suggest to use that they can click on list elements
+    #dirListing li.parent { cursor: pointer;}*/
+  </style>
+
+  <script src="bootstrap/js/jquery.js"></script>
+  <script type="text/javascript" language="javascript">
+    $(function(){
+
+
+      // make the items clickable
+      $('#dirListing').on('click','li', function(e){
+        var self = $(e.target);
+        if(self.is('li')){
+          if(self.hasClass('status-closed')){
+            self.removeClass('status-closed').addClass('status-open');
+          }
+          else{
+            self.find('li.status-open').andSelf().removeClass('status-open').addClass('status-closed');
+          }
+          return false;
+        }
+      });
+      $('#search').on('keyup',function(e){
+	var val = $(this).val().toLowerCase();
+	if(val.length >= 3){
+		$('#dirListing .status-open').removeClass('status-open').addClass('status-closed');
+		$('#dirListing li > span')
+			.filter(function(){
+				return $(this).text().toLowerCase().indexOf(val) >= 0;
+				})
+			.parents('li').addBack()
+				.removeClass('status-closed').addClass('status-open').addClass('search-match');
+		$('#dirListing li.status-open li:not(.search-match)').removeClass('status-open').addClass('status-closed search-fail');
+		}
+	else{
+		$('#dirListing .status-closed').removeClass('status-closed').addClass('status-open');
+		$('#dirListing').find('.search-match, .search-fail').removeClass('search-match search-fail');
+		}
+	});
+      $('.expand-all').on('click',function(e){
+      	$('#dirListing li').removeClass('status-closed search-match search-fail').addClass('status-open');
+	$('#search').val('');
+      	});
+      $('.collapse-all').on('click',function(e){
+      	$('#dirListing li').removeClass('status-open search-match search-fail').addClass('status-closed');
+	$('#search').val('');
+      	});
+
+
+      //
+      //// Javascript run to add classes on the tree. Can they be added serverside?
+      //
+      // Test set the status-closed classes
+      $('#dirListing li').addClass('status-open');
+      /* provide a class to use a tree/leaf parent selector */
+      $("li:has(ul)").addClass( "parent" );
+
+      /* give the directory browse links a fancy icon */
+      $("#dirListing a").addClass( "glyphicon glyphicon-eye-open" );
+
+
+    });
+  </script>
+
+</head>
+
+<body>
+
+<div class="navbar navbar-inverse navbar-fixed-top">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="#">File Listing</a>
+    </div>
+    <div class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li><a href="#Marketing">Marketing</a></li>
+        <li><a href="#Sales">Sales</a></li>
+        <li><a href="#Management">Management</a></li>
+        <li><a href="#Finance">Finance</a></li>
+
+      </ul>
+      <form class="navbar-form navbar-right">
+        <div class="form-group pull-right">
+          <input id="search" type="search" placeholder="Search here" class="form-control">
+        </div>
+      </form>
+    </div><!--/.navbar-collapse -->
+  </div>
+</div>
+
+<!-- Main jumbotron for a primary marketing message or call to action -->
+<div class="jumbotron">
+  <div class="container">
+    <h1>Data Explorer</h1>
+    <p>This tree is automatically produced by walking the file store every evening. Click on the <span
+            class="glyphicon glyphicon-eye-open">  </span> link to
+      navigate directly to that folder.</p>
+    <p><a class="btn btn-primary btn-lg">Learn more &raquo;</a></p>
+  </div>
+</div>
+
+<div class="container">
+  <div class="pull-right">
+    <div class="btn-group">
+      <button type="button" class="btn btn-default expand-all">Expand all</button>
+      <button type="button" class="btn btn-default collapse-all">Collapse all</button>
+    </div>
+  </div>
+  <hr/>
+  <ul id="dirListing">
+    <li id="Marketing"><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Marketing">Marketing</a></span>
+      <ul>
+        <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Marketing/In%20Year">In Year</a></span>
+          <ul>
+            <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Marketing/In%20Year/External">External</a></span></li>
+            <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Marketing/In%20Year/Internal%20(UK)">Internal (UK)</a></span></li>
+            <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Marketing/In%20Year/Internal%20(International)">Internal (International)</a></span></li>
+          </ul>
+        </li>
+        <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Marketing/Long%20term">Long term</a></span></li>
+      </ul>
+    </li>
+    <li id="Sales"><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Sales">Sales</a></span>
+      <ul>
+        <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Sales/Internal">Internal</a></span></li>
+        <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Sales/External">External</a></span>
+          <ul>
+            <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Sales/External/National">National</a></span></li>
+            <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Sales/External/International">International</a></span></li>
+          </ul>
+        </li>
+      </ul>
+    </li>
+    <li id="Management"><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Management">Management</a></span>
+      <ul>
+        <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Management/Junior">Junior</a></span>
+          <ul>
+            <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Management/Junior/Planning">Planning</a></span></li>
+            <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Management/Junior/Entertainment">Entertainment</a></span></li>
+          </ul>
+        </li>
+        <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Management/Senior">Senior</a></span>
+          <ul>
+            <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Management/Senior/Procedures">Procedures</a></span>
+              <ul>
+                <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Management/Senior/Procedures/Voluntary">Voluntary</a></span></li>
+                <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Management/Senior/Procedures/Regulatory">Regulatory</a></span></li>
+              </ul>
+            </li>
+            <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Management/Senior/Admin">Admin</a></span></li>
+            <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Management/Senior/Strategy">Strategy</a></span></li>
+          </ul>
+        </li>
+      </ul>
+    </li>
+    <li id="Finance"><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Finance">Finance</a></span>
+      <ul>
+        <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Finance/Audit">Audit</a></span></li>
+        <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Finance/Policy">Policy</a></span>
+          <ul>
+            <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Finance/Policy/Local">Local</a></span></li>
+            <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Finance/Policy/External">External</a></span></li>
+          </ul>
+        </li>
+      </ul>
+    </li>
+
+  </ul>
+
+
+  <hr>
+
+  <footer>
+    <p>&copy; Ian 2013</p>
+    <div id="timestamp">20131012 12:29</div>
+  </footer>
+</div> <!-- /container -->
+
+
+<!-- Bootstrap core JavaScript
+================================================== -->
+<!-- Placed at the end of the document so the pages load faster -->
+<script src="bootstrap/js/bootstrap.min.js"></script>
+</body>
+</html>

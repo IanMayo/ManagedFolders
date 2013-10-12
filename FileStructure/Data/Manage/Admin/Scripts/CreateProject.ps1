@@ -4,8 +4,80 @@
 param (
     [Parameter(Mandatory = $true)]
     [System.String]
-    $Path
+    $Path,
+
+    [ValidateNotNullOrEmpty()]
+    [System.String]
+    $ConfigFile = $null
 )
+
+#region Utility Functions
+
+function Import-IniFile
+{
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory = $true)]
+        [System.String]
+        $Path
+    )
+
+    New-Variable -Name UnnamedSection -Value '\\Unnamed//' -Option ReadOnly
+
+    if (-not (Test-Path -Path $Path -PathType Leaf))
+    {
+        throw New-Object System.IO.FileNotFoundException($Path)
+    }
+
+    $iniFile = @{}
+
+    $currentSection = $null
+
+    Get-Content -Path $Path -ErrorAction Stop |
+    ForEach-Object {
+        $line = $_
+
+        switch -Regex ($line)
+        {
+            # Comments
+            '^\s*;'
+            { }
+
+            # Sections
+            '^\s*\[(.+?)\]\s*$'
+            {
+                $sectionName = $matches[1]
+
+                if ($iniFile.ContainsKey($sectionName))
+                {
+                    $currentSection = $iniFile[$sectionName]
+                }
+                else
+                {
+                    $currentSection = @{}
+                    $iniFile.Add($sectionName, $currentSection)
+                }
+            }
+
+            # Key = Value pairs
+            '^\s*(.+?)\s*=\s*(.+?)\s*$'
+            {
+                $name = $matches[1]
+                $value = $matches[2]
+
+                if ($null -eq $currentSection)
+                {
+                    $currentSection = @{}
+                    $iniFile.Add($UnnamedSection, $currentSection)
+                }
+
+                $currentSection[$name] = $value
+            }
+        }
+    }
+
+    Write-Output $iniFile
+}
 
 function Get-ProjectName
 {
@@ -57,6 +129,10 @@ function Get-ProjectName
     }
 }
 
+#endregion
+
+#region Main Script
+
 try
 {
     $null = [System.Reflection.Assembly]::LoadWithPartialName("System.Drawing") 
@@ -69,27 +145,57 @@ catch
 
 $scriptFolder = Split-Path -Path $MyInvocation.MyCommand.Path -Parent
 
-# Sanity check to make sure this script is being executed in the intended folder structure.  The Data folder doesn't have to exist, but if the
-# script's folder doesn't end with "Admin\Scripts", throw an error.
+# Read configuration file
 
-# TODO: Per discussions with client, folder structure may be changed around a bit.  Script will be updated to get the root data folder from a config
-# file instead of making assumptions about paths relative to the script's location.
+if (-not $PSBoundParameters.ContainsKey('ConfigFile'))
+{
+    $ConfigFile = Join-Path -Path $scriptFolder -ChildPath 'config.ini'
+}
 
-if ($scriptFolder -notmatch '(.+)\\Admin\\Scripts\\?$')
+if (-not (Test-Path -Path $ConfigFile))
 {
     $null = [System.Windows.Forms.MessageBox]::Show(
-        "Error: $($MyInvocation.ScriptName) script is not located in the expected folder structure (which must end in \admin\scripts\).",
-        'Script Path Error',
+        "Error: Configuration file '$ConfigFile' was not found.",
+        'Configuration File Missing',
         'OK'
     )
-
     exit 1
 }
 
-$rootFolder = $matches[1]
+try
+{
+    $config = Import-IniFile -Path $ConfigFile -ErrorAction Stop
+    
+    if (-not $config.ContainsKey('Configuration'))
+    {
+        throw "Configuration file '$ConfigFile' does not contain the required [Configuration] section."
+    }
+}
+catch
+{
+    $null = [System.Windows.Forms.MessageBox]::Show(
+        "Error: Error Reading configuration file:`r`n$($_ | Out-String)",
+        'Error Reading Configuration File',
+        'OK'
+    )
+    exit 1
+}
 
-# Make sure the subject template folder exists
-$projectTemplateFolder = Join-Path -Path $rootFolder -ChildPath 'Admin\ProjectTemplate'
+# Fetch project template location from the config file.
+
+$temp = $config['Configuration']['ProjectTemplate']
+if ([string]::IsNullOrEmpty($temp))
+{
+    $temp = Join-Path -Path $scriptFolder -ChildPath '..\ProjectTemplate'
+}
+elseif (-not [System.IO.Path]::IsPathRooted($temp))
+{
+    $temp = Join-Path -Path $scriptFolder -ChildPath $temp
+}
+
+$temp = $PSCmdlet.GetUnresolvedProviderPathFromPSPath($temp)
+
+Set-Variable -Name projectTemplateFolder -Value $temp -Force -Scope Script -Option ReadOnly
 
 if (-not (Test-Path -Path $projectTemplateFolder -PathType Container))
 {
@@ -181,3 +287,5 @@ catch
 }
 
 exit 0
+
+#endregion
