@@ -203,7 +203,10 @@ function Get-HtmlIndexCode
         $Indent = 0,
 
         [switch]
-        $TopLevelShortcuts
+        $TopLevelShortcuts,
+
+        [switch]
+        $RecursiveCall
     )
 
     if ($null -ne $Html)
@@ -221,9 +224,8 @@ function Get-HtmlIndexCode
         {
             if ($childNode.ExistsOnDisk)
             {
-                $null = $stringBuilder.AppendLine(
-                    "<li><a href=""#$($childNode.Name)"">$($childNode.Name)</a></li>"
-                )
+                $code = "<li><a href=""#$($childNode.Name)"">$($childNode.Name)</a></li>"
+                $null = $stringBuilder.AppendLine(("{0,$Indent}{1}" -f ' ', $code))
             }
         }
 
@@ -236,17 +238,24 @@ function Get-HtmlIndexCode
         {
             if ($childNode.ExistsOnDisk)
             {
-                $listTag = '<li>'
+                $listTag = '<li'
                 
                 if ($childNode.Age -is [System.Timespan] -and $childNode.Age.TotalDays -gt 30)
                 {
-                    $listTag = '<li class="recent">'
+                    $listTag += ' class="recent"'
                 }
+
+                if (-not $RecursiveCall)
+                {
+                    $listTag += " id=""$($childNode.Name)"""
+                }
+
+                $listTag += '>'
 
                 $childPath = Join-Path -Path $Path -ChildPath $childNode.Name
 
                 $uri = New-Object System.Uri($childPath)
-                $code = "$listTag<a href=""$($uri.AbsoluteUri)"">$($childNode.Name)</a>"
+                $code = "$listTag<span><a href=""$($uri.AbsoluteUri)"">$($childNode.Name)</a></span>"
                 $null = $stringBuilder.Append(("{0,$Indent}{1}" -f ' ', $code))
 
                 if ($childNode.Children.Count -gt 0)
@@ -256,7 +265,7 @@ function Get-HtmlIndexCode
                     $Indent += 2
                     $null = $stringBuilder.AppendLine(("{0,$Indent}<ul>" -f ' '))
 
-                    $null = Get-HtmlIndexCode -Path $childPath -Node $childNode -Html $stringBuilder -Indent ($Indent + 2)
+                    $null = Get-HtmlIndexCode -Path $childPath -Node $childNode -Html $stringBuilder -Indent ($Indent + 2) -RecursiveCall
 
                     $null = $stringBuilder.AppendLine("{0,$Indent}</ul>" -f ' ')
                     $Indent -= 2
@@ -443,36 +452,71 @@ ForEach-Object {
     }
 }
 
-# Begin forming HTML index code.
-
-foreach ($fileName in ('header.inc', 'footer.inc'))
-{
-    $filePath = Join-Path -Path $scriptFolder -ChildPath $fileName
-    if (-not (Test-Path -Path $FilePath))
-    {
-        throw New-Object System.IO.FileNotFoundException($filePath)
-    }
-}
-
-$html = New-Object System.Text.StringBuilder
-
-try
-{
-    $null = $html.AppendLine([System.IO.File]::ReadAllText((Join-Path -Path $scriptFolder -ChildPath 'header.inc')))
-}
-catch
-{
-    Write-ErrorLog -ErrorRecord $_
-    exit 1
-}
-
-$null = $html.AppendLine('<h1>Directory listing</h1>').AppendLine()
-$null = $html.AppendLine('<ul id="dirListing">')
-
-# Now recursively enumerate folders under $dataFolder, looking for differences.  This function also generates HTML code as it goes, appending it to the
-# $html StringBuilder.
+# Now recursively enumerate folders under $dataFolder, looking for differences.
 
 $differences = @(CheckFolder -Directory $dataFolder -Node $rootNode -ErrorAction SilentlyContinue -ErrorVariable Err)
+
+# Finish generating HTML and save index file.
+$topLevelList = Get-HtmlIndexCode -Path $dataFolder -Node $rootNode -TopLevelShortcuts -Indent 8
+$index = Get-HtmlIndexCode -Path $dataFolder -Node $rootNode -Indent 4
+
+$ignore = $false
+
+Get-Content -Path (Join-Path -Path $rootFolder -ChildPath 'Admin\index_template.html') -ErrorAction SilentlyContinue -ErrorVariable +Err |
+ForEach-Object {
+    $line = $_
+
+    switch -Regex ($line) {
+        '^\s*<!--\s*INDEX_START\s*-->\s*$'
+        {
+            $ignore = $true
+            Write-Output $topLevelList
+            break
+        }
+        
+        '^\s*<!--\s*INDEX_END\s*-->\s*$'
+        {
+            $ignore = $false
+            break
+        }
+
+        '^\s*<!--\s*LISTING_START\s*-->\s*$'
+        {
+            $ignore = $true
+            Write-Output $index
+            break
+        }
+
+        '^\s*<!--\s*LISTING_END\s*-->\s*$'
+        {
+            $ignore = $false
+            break
+        }
+
+        '^\s*<!--\s*TIMESTAMP_START\s*-->\s*$'
+        {
+            $ignore = $true
+            Write-Output "    <div id=""timestamp"">$(Get-Date -Format 'yyyyMMdd hh:mm')</div>"
+            break
+        }
+
+        '^\s*<!--\s*TIMESTAMP_END\s*-->\s*$'
+        {
+            $ignore = $false
+            break
+        }
+
+        '.*'
+        {
+            if (-not $ignore)
+            {
+                Write-Output $line
+            }
+        }
+    }
+} |
+Set-Content -Path (Join-Path -Path $rootFolder -ChildPath 'Admin\index.html') -Force -ErrorAction SilentlyContinue -ErrorVariable +Err
+
 
 $message = New-Object System.Text.StringBuilder
 
@@ -520,18 +564,3 @@ if ($message.Length -gt 0)
     }
 }
 
-# Finish generating HTML and save index file.
-$null = $html.AppendLine((Get-HtmlIndexCode -Path $dataFolder -Node $rootNode))
-$null = $html.AppendLine('</ul>')
-
-try
-{
-    $null = $html.AppendLine([System.IO.File]::ReadAllText((Join-Path -Path $scriptFolder -ChildPath 'footer.inc')))
-}
-catch
-{
-    Write-ErrorLog -ErrorRecord $_
-    exit 1
-}
-
-Set-Content -Path (Join-Path -Path $rootFolder -ChildPath 'Admin\index.html') -Value $html.ToString() -Force
