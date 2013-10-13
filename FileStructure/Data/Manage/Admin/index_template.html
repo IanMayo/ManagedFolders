@@ -77,9 +77,12 @@
 
 
       // make the items clickable
-      $('#dirListing').on('click','li', function(e){
+      $('#dirListing').on('click','li, li > span', function(e){
         var self = $(e.target);
-        if(self.is('li, li > span')){
+        if(self.is('li > span')){
+        	self = self.parent();
+        }
+        if(self.is('li')){
           if(self.hasClass('status-closed')){
             self.removeClass('status-closed').addClass('status-open');
           }
