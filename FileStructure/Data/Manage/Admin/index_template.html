@@ -94,18 +94,21 @@
       });
       $('#search').on('keyup',function(e){
 	var val = $(this).val().toLowerCase();
+	$('#dirListing .status-closed').removeClass('status-closed').addClass('status-open');
 	if(val.length >= 3){
 		$('#dirListing .status-open').removeClass('status-open').addClass('status-closed');
-		$('#dirListing li > span')
+		var matches = $('#dirListing li > span')
 			.filter(function(){
 				return $(this).text().toLowerCase().indexOf(val) >= 0;
-				})
-			.parents('li').addBack()
+				});
+		if(matches.length > 0){
+			matches
+				.parents('li').addBack()
 				.removeClass('status-closed').addClass('status-open').addClass('search-match');
+			}
 		$('#dirListing li.status-open li:not(.search-match)').removeClass('status-open').addClass('status-closed search-fail');
 		}
 	else{
-		$('#dirListing .status-closed').removeClass('status-closed').addClass('status-open');
 		$('#dirListing').find('.search-match, .search-fail').removeClass('search-match search-fail');
 		}
 	});
