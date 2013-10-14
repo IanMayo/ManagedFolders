@@ -106,7 +106,7 @@
 				.parents('li').addBack()
 				.removeClass('status-closed').addClass('status-open').addClass('search-match');
 			}
-		$('#dirListing li.status-open li:not(.search-match)').removeClass('status-open').addClass('status-closed search-fail');
+		$('#dirListing li:not(.search-match)').removeClass('status-open').addClass('status-closed search-fail');
 		}
 	else{
 		$('#dirListing').find('.search-match, .search-fail').removeClass('search-match search-fail');
