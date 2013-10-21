@@ -94,6 +94,42 @@ function ConfigureSubjectFolder
     }
 }
 
+function EnumerateSubjectFolderContents
+{
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory = $true)]
+        [System.IO.DirectoryInfo]
+        $Directory,
+
+        [Parameter(Mandatory = $true)]
+        [psobject]
+        $Node,
+
+        [System.Int32]
+        $Levels = -1
+    )
+
+    if ($Levels -eq 0)
+    {
+        return
+    }
+
+    foreach ($dirInfo in $Directory.GetDirectories())
+    {
+        $child = New-Object psobject -Property @{
+            Name = $dirInfo.Name
+            Children = @{}
+            ExistsOnDisk = $true
+            Age = (Get-Date) - $dirInfo.CreationTime
+        }
+
+        $Node.Children[$dirInfo.Name] = $child
+
+        EnumerateSubjectFolderContents -Directory $dirInfo -Node $child -Levels ($Levels - 1)
+    }
+}
+
 function CheckFolder
 {
     # Recursive function to walk a folder tree, comparing the contents to a tree of PSObjects which list the intended folder structure.
@@ -154,14 +190,8 @@ function CheckFolder
         }
         else
         {
-            try
-            {
-                ConfigureSubjectFolder -Directory $dirInfo -ErrorAction Stop
-            }
-            catch
-            {
-                Write-Error -ErrorRecord $_
-            }
+            ConfigureSubjectFolder -Directory $dirInfo
+            EnumerateSubjectFolderContents -Directory $dirInfo -Node $childNode -Levels 2
         }
 
     } # end foreach ($dirInfo in $Directory.GetDirectories())
@@ -278,7 +308,7 @@ function Get-HtmlIndexCode
             {
                 $listTag = '<li'
                 
-                if ($childNode.Age -is [System.Timespan] -and $childNode.Age.TotalDays -gt 30)
+                if ($childNode.Age -is [System.Timespan] -and $childNode.Age.TotalDays -lt 30)
                 {
                     $listTag += ' class="recent"'
                 }
