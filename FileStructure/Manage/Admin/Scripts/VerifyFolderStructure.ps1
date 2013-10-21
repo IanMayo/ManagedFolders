@@ -67,7 +67,7 @@ function ConfigureSubjectFolder
         $shortcut = $shell.CreateShortcut($shortcutPath)
 
         $shortcut.TargetPath = "$PSHOME\powershell.exe"
-        $shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -Command & '$script:scriptFolder\CreateProject.ps1' -Path '$($Directory.FullName)'"
+        $shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -Command & '$script:scriptFolder\CreateProject.ps1' -Path '$($Directory.FullName)' -ConfigFile '$script:ConfigFile'"
         $shortcut.Save()
         
         # Set permissions on initial contents of Subject folder.
@@ -445,6 +445,12 @@ if (-not $PSBoundParameters.ContainsKey('ConfigFile'))
 {
     $ConfigFile = Join-Path -Path $scriptFolder -ChildPath 'config.ini'
 }
+elseif (-not [System.IO.Path]::IsPathRooted($ConfigFile))
+{
+    $ConfigFile = Join-Path -Path $scriptFolder -ChildPath $ConfigFile
+}
+
+$ConfigFile = $PSCmdlet.GetUnresolvedProviderPathFromPSPath($ConfigFile)
 
 if (-not (Test-Path -Path $ConfigFile))
 {

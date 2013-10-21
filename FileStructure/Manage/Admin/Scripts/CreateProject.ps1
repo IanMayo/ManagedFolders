@@ -151,7 +151,12 @@ if (-not $PSBoundParameters.ContainsKey('ConfigFile'))
 {
     $ConfigFile = Join-Path -Path $scriptFolder -ChildPath 'config.ini'
 }
+elseif (-not [System.IO.Path]::IsPathRooted($ConfigFile))
+{
+    $ConfigFile = Join-Path -Path $scriptFolder -ChildPath $ConfigFile
+}
 
+$ConfigFile = $PSCmdlet.GetUnresolvedProviderPathFromPSPath($ConfigFile)
 if (-not (Test-Path -Path $ConfigFile))
 {
     $null = [System.Windows.Forms.MessageBox]::Show(
