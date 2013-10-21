@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="">
   <meta name="author" content="Ian Mayo">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge"/>
 
   <title>Directory Listing</title>
 
@@ -77,8 +78,11 @@
 
 
       // make the items clickable
-      $('#dirListing').on('click','li', function(e){
+      $('#dirListing').on('click','li, li > span', function(e){
         var self = $(e.target);
+        if(self.is('li > span')){
+        	self = self.parent();
+        }
         if(self.is('li')){
           if(self.hasClass('status-closed')){
             self.removeClass('status-closed').addClass('status-open');
@@ -91,18 +95,21 @@
       });
       $('#search').on('keyup',function(e){
 	var val = $(this).val().toLowerCase();
+	$('#dirListing .status-closed').removeClass('status-closed').addClass('status-open');
 	if(val.length >= 3){
 		$('#dirListing .status-open').removeClass('status-open').addClass('status-closed');
-		$('#dirListing li > span')
+		var matches = $('#dirListing li > span')
 			.filter(function(){
 				return $(this).text().toLowerCase().indexOf(val) >= 0;
-				})
-			.parents('li').addBack()
+				});
+		if(matches.length > 0){
+			matches
+				.parents('li').addBack()
 				.removeClass('status-closed').addClass('status-open').addClass('search-match');
-		$('#dirListing li.status-open li:not(.search-match)').removeClass('status-open').addClass('status-closed search-fail');
+			}
+		$('#dirListing li:not(.search-match)').removeClass('status-open').addClass('status-closed search-fail');
 		}
 	else{
-		$('#dirListing .status-closed').removeClass('status-closed').addClass('status-open');
 		$('#dirListing').find('.search-match, .search-fail').removeClass('search-match search-fail');
 		}
 	});
@@ -147,10 +154,10 @@
     </div>
     <div class="navbar-collapse collapse">
       <ul class="nav navbar-nav">
+        <li><a href="#Finance">Finance</a></li>
+        <li><a href="#Management">Management</a></li>
         <li><a href="#Marketing">Marketing</a></li>
         <li><a href="#Sales">Sales</a></li>
-        <li><a href="#Management">Management</a></li>
-        <li><a href="#Finance">Finance</a></li>
 
       </ul>
       <form class="navbar-form navbar-right">
@@ -182,58 +189,58 @@
   </div>
   <hr/>
   <ul id="dirListing">
-    <li id="Marketing"><span>Marketing</span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Marketing"></a>
+    <li id="Finance"><span>Finance</span><a href="file:///C:/Users/Dave/documents/github/ManagedFolders/FileStructure/Finance"></a>
       <ul>
-        <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Marketing/In%20Year">In Year</a></span>
+        <li><span>Policy</span><a href="file:///C:/Users/Dave/documents/github/ManagedFolders/FileStructure/Finance/Policy"></a>
           <ul>
-            <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Marketing/In%20Year/External">External</a></span></li>
-            <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Marketing/In%20Year/Internal%20(UK)">Internal (UK)</a></span></li>
-            <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Marketing/In%20Year/Internal%20(International)">Internal (International)</a></span></li>
+            <li><span>External</span><a href="file:///C:/Users/Dave/documents/github/ManagedFolders/FileStructure/Finance/Policy/External"></a></li>
+            <li><span>Local</span><a href="file:///C:/Users/Dave/documents/github/ManagedFolders/FileStructure/Finance/Policy/Local"></a></li>
           </ul>
         </li>
-        <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Marketing/Long%20term">Long term</a></span></li>
+        <li><span>Audit</span><a href="file:///C:/Users/Dave/documents/github/ManagedFolders/FileStructure/Finance/Audit"></a></li>
       </ul>
     </li>
-    <li id="Sales"><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Sales">Sales</a></span>
+    <li id="Management"><span>Management</span><a href="file:///C:/Users/Dave/documents/github/ManagedFolders/FileStructure/Management"></a>
       <ul>
-        <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Sales/Internal">Internal</a></span></li>
-        <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Sales/External">External</a></span>
+        <li><span>Senior</span><a href="file:///C:/Users/Dave/documents/github/ManagedFolders/FileStructure/Management/Senior"></a>
           <ul>
-            <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Sales/External/National">National</a></span></li>
-            <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Sales/External/International">International</a></span></li>
-          </ul>
-        </li>
-      </ul>
-    </li>
-    <li id="Management"><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Management">Management</a></span>
-      <ul>
-        <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Management/Junior">Junior</a></span>
-          <ul>
-            <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Management/Junior/Planning">Planning</a></span></li>
-            <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Management/Junior/Entertainment">Entertainment</a></span></li>
-          </ul>
-        </li>
-        <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Management/Senior">Senior</a></span>
-          <ul>
-            <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Management/Senior/Procedures">Procedures</a></span>
+            <li><span>Strategy</span><a href="file:///C:/Users/Dave/documents/github/ManagedFolders/FileStructure/Management/Senior/Strategy"></a></li>
+            <li><span>Procedures</span><a href="file:///C:/Users/Dave/documents/github/ManagedFolders/FileStructure/Management/Senior/Procedures"></a>
               <ul>
-                <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Management/Senior/Procedures/Voluntary">Voluntary</a></span></li>
-                <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Management/Senior/Procedures/Regulatory">Regulatory</a></span></li>
+                <li><span>Regulatory</span><a href="file:///C:/Users/Dave/documents/github/ManagedFolders/FileStructure/Management/Senior/Procedures/Regulatory"></a></li>
+                <li><span>Voluntary</span><a href="file:///C:/Users/Dave/documents/github/ManagedFolders/FileStructure/Management/Senior/Procedures/Voluntary"></a></li>
               </ul>
             </li>
-            <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Management/Senior/Admin">Admin</a></span></li>
-            <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Management/Senior/Strategy">Strategy</a></span></li>
+            <li><span>Admin</span><a href="file:///C:/Users/Dave/documents/github/ManagedFolders/FileStructure/Management/Senior/Admin"></a></li>
+          </ul>
+        </li>
+        <li><span>Junior</span><a href="file:///C:/Users/Dave/documents/github/ManagedFolders/FileStructure/Management/Junior"></a>
+          <ul>
+            <li><span>Planning</span><a href="file:///C:/Users/Dave/documents/github/ManagedFolders/FileStructure/Management/Junior/Planning"></a></li>
+            <li><span>Entertainment</span><a href="file:///C:/Users/Dave/documents/github/ManagedFolders/FileStructure/Management/Junior/Entertainment"></a></li>
           </ul>
         </li>
       </ul>
     </li>
-    <li id="Finance"><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Finance">Finance</a></span>
+    <li id="Marketing"><span>Marketing</span><a href="file:///C:/Users/Dave/documents/github/ManagedFolders/FileStructure/Marketing"></a>
       <ul>
-        <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Finance/Audit">Audit</a></span></li>
-        <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Finance/Policy">Policy</a></span>
+        <li><span>Long term</span><a href="file:///C:/Users/Dave/documents/github/ManagedFolders/FileStructure/Marketing/Long%20term"></a></li>
+        <li><span>In Year</span><a href="file:///C:/Users/Dave/documents/github/ManagedFolders/FileStructure/Marketing/In%20Year"></a>
           <ul>
-            <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Finance/Policy/Local">Local</a></span></li>
-            <li><span><a href="file:///C:/Users/Dave/Documents/GitHub/ManagedFolders/FileStructure/Data/Finance/Policy/External">External</a></span></li>
+            <li><span>Internal (International)</span><a href="file:///C:/Users/Dave/documents/github/ManagedFolders/FileStructure/Marketing/In%20Year/Internal%20(International)"></a></li>
+            <li><span>Internal (UK)</span><a href="file:///C:/Users/Dave/documents/github/ManagedFolders/FileStructure/Marketing/In%20Year/Internal%20(UK)"></a></li>
+            <li><span>External</span><a href="file:///C:/Users/Dave/documents/github/ManagedFolders/FileStructure/Marketing/In%20Year/External"></a></li>
+          </ul>
+        </li>
+      </ul>
+    </li>
+    <li id="Sales"><span>Sales</span><a href="file:///C:/Users/Dave/documents/github/ManagedFolders/FileStructure/Sales"></a>
+      <ul>
+        <li><span>Internal</span><a href="file:///C:/Users/Dave/documents/github/ManagedFolders/FileStructure/Sales/Internal"></a></li>
+        <li><span>External</span><a href="file:///C:/Users/Dave/documents/github/ManagedFolders/FileStructure/Sales/External"></a>
+          <ul>
+            <li><span>International</span><a href="file:///C:/Users/Dave/documents/github/ManagedFolders/FileStructure/Sales/External/International"></a></li>
+            <li><span>National</span><a href="file:///C:/Users/Dave/documents/github/ManagedFolders/FileStructure/Sales/External/National"></a></li>
           </ul>
         </li>
       </ul>
@@ -246,7 +253,7 @@
 
   <footer>
     <p>&copy; Ian 2013</p>
-    <div id="timestamp">20131012 12:29</div>
+    <div id="timestamp">20131020 20:40</div>
   </footer>
 </div> <!-- /container -->
 

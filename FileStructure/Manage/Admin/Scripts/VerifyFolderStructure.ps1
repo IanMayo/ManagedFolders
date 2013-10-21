@@ -683,7 +683,7 @@ ForEach-Object {
         '^\s*<!--\s*TIMESTAMP_START\s*-->\s*$'
         {
             $ignore = $true
-            Write-Output "    <div id=""timestamp"">$(Get-Date -Format 'yyyyMMdd hh:mm')</div>"
+            Write-Output "    <div id=""timestamp"">$(Get-Date -Format 'yyyyMMdd HH:mm')</div>"
             break
         }
 
