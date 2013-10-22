@@ -66,8 +66,14 @@ function ConfigureSubjectFolder
         $shortcutPath = Join-Path -Path $Directory.FullName -ChildPath 'New Project Here.lnk'
         $shortcut = $shell.CreateShortcut($shortcutPath)
 
-        $shortcut.TargetPath = "$PSHOME\powershell.exe"
-        $shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -Command & '$script:scriptFolder\CreateProject.ps1' -Path '$($Directory.FullName)' -ConfigFile '$script:ConfigFile'"
+        # Original PowerShell version.  Replaced with VBScript for performance tests.
+        # $shortcut.TargetPath = "$PSHOME\powershell.exe"
+        # $shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -Command & '$script:scriptFolder\CreateProject.ps1' -Path '$($Directory.FullName)' -ConfigFile '$script:ConfigFile'"
+
+        # VBScript version
+        $shortcut.TargetPath = "wscript.exe"
+        $shortcut.Arguments = """$script:scriptFolder\CreateProject.vbs"" /Path:""$($Directory.FullName)"" /ConfigFile:""$script:ConfigFile"""
+
         $shortcut.Save()
         
         # Set permissions on initial contents of Subject folder.
