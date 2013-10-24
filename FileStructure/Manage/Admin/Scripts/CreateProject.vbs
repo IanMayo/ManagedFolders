@@ -1,18 +1,42 @@
+' ***********************************************
+' CreateProject.vbs
+'
+' Prompts the user to enter a new project name, and copies a template folder into
+' a new folder of that name.
+'
+' Parameters:
+'   Path:  Path to the folder where a new project is to be created.  This can either be
+'          a folder named "Projects", or a folder that contains a folder named "Projects".
+'   
+'   ConfigFile:  Optional.  Path to an INI file which contains script options.  If this
+'                parameter is not specified, it defaults to a file named "config.ini" in the
+'                same folder as the script.
+'
+' Notes:
+'   The INI file must contain a [Configuration] section.  In that section, there must be a
+'   value named ProjectTemplate, which contains the path to the template folder.  If a relative
+'   path is specified, it is relative in relation to the folder where this script is located.
+' ***********************************************
+
 Option Explicit
 
 Const ForReading = 1
 
 Dim strIniPath, strProjectsFolder, strTemplatePath, strProjectName, strProjectPath
 Dim strScriptFolder, strScriptFile
-Dim objFSO, objFile
-
-strScriptFile = WScript.ScriptFullName
+Dim objFSO
 
 Set objFSO = CreateObject("Scripting.FileSystemObject")
 
+' Determine the script's folder
+strScriptFile = WScript.ScriptFullName
+
+Dim objFile
 Set objFile = objFSO.GetFile(strScriptFile)
 strScriptFolder = objFSO.GetParentFolderName(objFile) 
 Set objFile = Nothing
+
+' Validate user input.  Make sure the values reference by the Path and ConfigFile parameters exist.
 
 If (WScript.Arguments.Named.Exists("ConfigFile")) Then
     strIniPath = WScript.Arguments.Named("ConfigFile")
@@ -45,6 +69,8 @@ If (Not objFSO.FileExists(strIniPath)) Then
     MsgBox "Error: Configuration file '" & strIniPath & "' does not exist.", vbOkOnly, "Config file not found."
     WScript.Quit 1
 End If
+
+' Read the INI file, and make sure the project template folder exists.
 
 Dim objIniFile, objConfigSection
 Set objIniFile = ReadIniFile(strIniPath)
@@ -83,11 +109,17 @@ If (Not objFSO.FolderExists(strTemplatePath)) Then
     WScript.Quit 1
 End If
 
+' Prompt the user to enter a project name.  If it is invalid or already exists, prompt the user to try again.
+' If the user enters nothing (or clicks cancel), exit the script.
+
 Dim reInvalidCharacters
 Set reInvalidCharacters = New RegExp
 reInvalidCharacters.Pattern = "[\\/:\*\?""\<\>\|]"
 
 Do While (True)
+    ' Per client requirements, the project name is suggested to begin with "YYYYMM-", but not required.
+    ' The InputBox sets this value as the default; the user can keep or overwrite it, as desired.
+
     Dim intMonth, intYear
     Dim strPrefix
     
@@ -119,6 +151,8 @@ Do While (True)
     End If
 Loop
 
+' The user has entered a valid project name.  Attempt to copy the template directory into the new project folder.
+
 On Error Resume Next
 
 objFSO.CopyFolder strTemplatePath, strProjectPath
@@ -130,6 +164,18 @@ If (Err.Number <> 0) Then
 End If
 
 On Error Goto 0
+
+'
+' ReadIniFile
+'
+' Reads an INI file from disk, returning a Dictionary of Dictionaries.  Each section name is a key of the root dictionary, which maps
+' to another dictionary containing the key=value pairs.
+'
+' If the file cannot be read, this function returns Nothing; the calling code should test for this as an indication of failure.
+'
+' Parameters:
+'   strPath: Path to the INI file which is to be read.
+'
 
 Function ReadIniFile(strPath)
     Set ReadIniFile = Nothing
@@ -196,6 +242,9 @@ Function ReadIniFile(strPath)
             Next
         End If
     Loop
+
+    objFile.Close()
+    Set objFile = Nothing
 
     Set ReadIniFile = objDictionary
 End Function

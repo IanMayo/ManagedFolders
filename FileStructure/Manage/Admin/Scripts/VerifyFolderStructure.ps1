@@ -1,3 +1,62 @@
+<#
+.Synopsis
+   Verifies or creates a folder structure on disk, based on the contents of a CSV file and template directories.
+.DESCRIPTION
+   Each record of the CSV file defines a "Subject" folder.  The script attempts to create each of these subject
+   directories (if they do not already exist), and copies the contents of a "Subject Folder" template into each.
+   It also sets NTFS permissions of the directory structure according to hard-coded client requirements, and
+   creates a "New Project Here" shortcut in each subject directory; this shortcut refers to a separate script.
+
+   In addition to verifying the folder structure, this script creates an index HTML file with links to directories
+   in this folder tree, based on a template HTML file.
+
+   If any folders exist that are not part of the CSV-defined structure, or if any required folder could not be
+   created, the script will output error messages according to which parameters are supplied on the command-line.
+   It will always write Warning output to the console, but can also create a log file on disk and/or send a message
+   using msg.exe.
+.PARAMETER ConfigFile
+   Optional path to an INI file.  If not specified, the value defaults to "config.ini" in the same directory as this script.
+
+   The INI file must contain a [Configuration] section with the following values:  (If relative paths are specified for any
+   values in this section, they are relative to the folder containing this script)
+
+   CsvFile:  Path to the CSV file which defines the folder structure.
+   DataFolder:  Path to the root folder where the folder structure is to be checked / created.
+   HtmlTemplate:  Path to the template HTML file used for generating the index file.
+   HtmlOutput:  Path where the index file should be saved.
+   SubjectTemplate:  Path to the Subject Template folder which is copied in to each subject directory.
+
+   Also, the configuration file may optionally include a section named [IgnorePaths].  Each value in this section is
+   ignored when walking the folder tree; the script will not produce any errors or warnings due to the existence of these
+   folders, or any folders contained within them.  The paths are all relative to the DataFolder specified in the [Configuration]
+   section.
+   
+   The value names of this section are irrelevant; the script enumerates them all and only cares about the values.  For example:
+
+   [IgnorePaths]
+   Tom = SomeFolder
+   Dick = SomeOtherFolder\ChildFolder
+   Harry = PayNoAttentionTo\TheManBehind\TheCurtain\
+.PARAMETER LogFile
+   Optional path to a log file that the script should produce.  If this parameter is not specified, no log file is created.
+   If it is specified, all console output will be copied to the log file (including prepended date-and-time information on
+   each line.)
+.PARAMETER SendMsg
+   Optional switch parameter.  If set, the script will also send out any errors or warnings via msg.exe.
+.EXAMPLE
+   .\VerifyFolderStructure.ps1
+
+   Uses the config.ini file in the same directory as the script, and does not produce a log file or call msg.exe.
+.EXAMPLE
+   .\VerifyFolderStructure.ps1 -ConfigFile .\SomeFile.ini -LogFile .\VerifyFolderStructure.log -SendMsg
+
+   Uses the SomeFile.ini config file, creates a log file named VerifyFolderStructure.log, and calls msg.exe if any problems are encountered.
+.INPUTS
+   None.  This script does not accept pipeline input.
+.OUTPUTS
+   None.  This script writes all output directly to the host, and does not produce objects on the pipeline.
+#>
+
 #requires -Version 2.0
 
 [CmdletBinding()]
@@ -18,6 +77,11 @@ param (
 
 function Get-RelativePath
 {
+    # Returns the "child" portion of a path, relative to the specified root folder.  For example:
+    #
+    # Get-RelativePath -Path C:\Folder\Subfolder\File.txt -RelativeTo C:\Folder
+    # would return:  Subfolder\File.txt
+
     [CmdletBinding()]
     param (
         [Parameter(Mandatory = $true)]
@@ -48,6 +112,11 @@ Add-Type -TypeDefinition @'
 
 function ConfigureSubjectFolder
 {
+    # For the specified Subject Folder (specified by a DirectoryInfo object), copies the contents of the subject template
+    # folder to this location.  Grants Full Control permission to any child directories of the subject folder, and creates
+    # a "New Project Here" shortcut which launches the CreateProject script with a Path parameter specifying this subject
+    # folder, and the same ConfigFile parameter used in the call to VerifyFolderStructure.ps1.
+
     [CmdletBinding()]
         param (
         [Parameter(Mandatory = $true)]
@@ -67,6 +136,9 @@ function ConfigureSubjectFolder
         $shortcut = $shell.CreateShortcut($shortcutPath)
 
         # Original PowerShell version.  Replaced with VBScript for performance tests.
+        # Note:  VBScript performance was preferred, so this code can be deleted, if you never want
+        # to worry about going back to a PowerShell version of CreateProject.
+
         # $shortcut.TargetPath = "$PSHOME\powershell.exe"
         # $shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -Command & '$script:scriptFolder\CreateProject.ps1' -Path '$($Directory.FullName)' -ConfigFile '$script:ConfigFile'"
 
@@ -76,7 +148,7 @@ function ConfigureSubjectFolder
 
         $shortcut.Save()
         
-        # Set permissions on initial contents of Subject folder.
+        # Set permissions on contents of Subject folder.
         foreach ($item in $Directory.GetDirectories())
         {
             $acl = $item.GetAccessControl('Access')
@@ -102,6 +174,16 @@ function ConfigureSubjectFolder
 
 function EnumerateSubjectFolderContents
 {
+    # Recursive function to walk the contents of a subject folder, adding information about them to a tree structure.
+    # Each node o the tree contains 4 properties:
+
+    # Name:  Name of the directory (not including parent path)
+    # Children:  Hashtable of child nodes, keyed by their Name properties.
+    # ExistsOnDisk:  Boolean value which is always set to $true for nodes created by this function.
+    # Age:  A Timespan value indicating the difference between now and the CreationTime of the directory.
+
+    # This tree structure is later used in the creation of the index html file.
+
     [CmdletBinding()]
     param (
         [Parameter(Mandatory = $true)]
@@ -144,6 +226,19 @@ function CheckFolder
 
     # Also populates the ExistsOnDisk and Age fields of any nodes in the tree, for use in generating HTML code later.
 
+    # For each subject folder (leaf node of the initial structure, as defined by the CSV file), call EnumerateSubjectFolderContents and
+    # ConfigureSubjectFolder; see comments on those functions in their definitions.
+
+    # Note:  These functions change the tree structure passed in to the Node parameter of the initial call to CheckFolder.  There should
+    # only ever be one call to CheckFolder for each node in the tree; if it is called a second time, the logic will fail due to the presence
+    # of child nodes under each "Subject" folder.
+
+    # This function produces pipeline output in the form of objects indicating differences between what's defined in the CSV file, and
+    # what is on disk (not counting folders that are successfully created, if they didn't already exist.)  For example:
+
+    # Path:  C:\ManagedFolders\Data\SomeFolder
+    # DifferenceType:  [DifferenceType]::OnlyOnDisk
+
     [CmdletBinding()]
     param (
         [Parameter(Mandatory = $true)]
@@ -162,22 +257,20 @@ function CheckFolder
         $IgnorePaths
     )
 
-    $childFoldersChecked = @{}
-
     foreach ($dirInfo in $Directory.GetDirectories())
     {
+        # Check whether this directory should be ignored.
+
         $relativePath = Get-RelativePath -Path $dirInfo.FullName -RelativeTo $RootPath
         if ($IgnorePaths -match "^\.?\\?$([regex]::Escape($relativePath))\\?$")
         {
             continue
         }
 
-        $childFoldersChecked[$dirInfo.Name] = $true
-
         $childNode = $Node.Children[$dirInfo.Name]
         if ($null -eq $childNode)
         {
-            # This is a folder that exists on disk, but isn't in the CSV file
+            # This is a folder that exists on disk, but isn't in the CSV file.  Output an object indicating this information.
             New-Object psobject -Property @{
                 Path = $dirInfo.FullName
                 DifferenceType = [DifferenceType]::OnlyOnDisk
@@ -196,6 +289,9 @@ function CheckFolder
         }
         else
         {
+            # This is a subject folder.  Copy the template contents into it, configure permissions, create the shortcut, and enumerate
+            # its contents to two levels deep (for the index html file).
+
             ConfigureSubjectFolder -Directory $dirInfo
             EnumerateSubjectFolderContents -Directory $dirInfo -Node $childNode -Levels 2
         }
@@ -205,7 +301,7 @@ function CheckFolder
     # Now look for any nodes from the CSV that didn't exist on disk, and attempt to create them.
     foreach ($childNode in $node.Children.Values)
     {
-        if ($childFoldersChecked.ContainsKey($childNode.Name))
+        if ($childNode.ExistsOnDisk)
         {
             continue
         }
@@ -283,6 +379,10 @@ function Get-HtmlIndexCode
         $RecursiveCall
     )
 
+    # If the caller passed in a StringBuilder object, append to that.  Otherwise, create a new StringBuilder local to this
+    # function.  (Note:  When making recursive calls, pass the StringBuilder in with the -Html parameter, regardless of whether
+    # it was passed in originally by the caller or not.)
+
     if ($null -ne $Html)
     {
         $stringBuilder = $Html
@@ -314,10 +414,17 @@ function Get-HtmlIndexCode
             {
                 $listTag = '<li'
                 
+                # Folders that have existed for less than 30 days are flagged as "recent"; the CSS code of the html file
+                # causes them to display differently.
+
                 if ($childNode.Age -is [System.Timespan] -and $childNode.Age.TotalDays -lt 30)
                 {
                     $listTag += ' class="recent"'
                 }
+
+                # The RecursiveCall switch indicates that we're not currently looking at the "top level" folders.
+                # If we are dealing with the top level, the client's requirements state that we should add an
+                # id="FolderName" attribute to the LI tag.
 
                 if (-not $RecursiveCall)
                 {
@@ -325,6 +432,21 @@ function Get-HtmlIndexCode
                 }
 
                 $listTag += '>'
+
+                # Generate the full HTML tags for this item.  Leaf nodes should be output on one line, ie:
+                # <li><span>FolderName</span><a href="Folder URI"></a></li>
+                #
+                # (The empty text between the <a> and </a> tags is intentional; the CSS / JavaScript code
+                # somehow turns that into a graphic link.)
+                #
+                # For nodes that contain child folders, the <li> and </li> tags should be on separate lines, with
+                # another unordered list contained between them, ie:
+                #
+                # <li><span>FolderName</span><a href="Folder URI"></a>
+                #   <ul>
+                #     <li><span>FolderName</span><a href="Folder URI"></a></li>
+                #   </ul>
+                # </li>
 
                 $childPath = Join-Path -Path $Path -ChildPath $childNode.Name
 
@@ -351,6 +473,10 @@ function Get-HtmlIndexCode
             }
         }
 
+        # For performance reasons, this function only writes output to the pipeline at the root level.  Recursive calls
+        # just append directly to the same StringBuilder object, instead of making the caller do it (involving extra string
+        # copies in memory.)
+
         if ($null -eq $Html)
         {
             Write-Output $stringBuilder.ToString()
@@ -360,6 +486,9 @@ function Get-HtmlIndexCode
 
 function Import-IniFile
 {
+    # Reads an INI file from disk, importing it into a hashtable of hashtables.  Each key at the "root" level
+    # is a section name, which contains another hashtable of the key=value pairs from that section of the file.
+
     [CmdletBinding()]
     param (
         [Parameter(Mandatory = $true)]
