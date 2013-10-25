@@ -294,10 +294,8 @@ if ([string]::IsNullOrEmpty($noArchiveTypes))
 }
 else
 {
-    $noArchiveTypes = $noArchiveTypes -split ','
+    $noArchiveTypes = (($noArchiveTypes -split ',') -replace '^\s+|\s+$') -replace '^(?=[^\.])', '.'
 }
-
-Write-Verbose 'Verifying Data folder and permissions...'
 
 # Make sure Data folder exists.
 if (-not (Test-Path -Path $dataFolder -PathType Container))
