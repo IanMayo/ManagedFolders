@@ -147,6 +147,13 @@ function ConfigureSubjectFolder
         $shortcut.Arguments = """$script:scriptFolder\CreateProject.vbs"" /Path:""$($Directory.FullName)"" /ConfigFile:""$script:ConfigFile"""
 
         $shortcut.Save()
+
+        # Copy shortcut file to Projects directory.
+        $projectsPath = Join-Path -Path $Directory.FullName -ChildPath 'Projects'
+        if (Test-Path -Path $projectsPath -PathType Container)
+        {
+            Copy-Item -Path $shortcutPath -Destination $projectsPath -Force -ErrorAction Stop
+        }
         
         # Set permissions on contents of Subject folder.
         foreach ($item in $Directory.GetDirectories())
@@ -375,8 +382,8 @@ function Get-HtmlIndexCode
         [switch]
         $TopLevelShortcuts,
 
-        [switch]
-        $RecursiveCall
+        [System.UInt32]
+        $Level = 1
     )
 
     # If the caller passed in a StringBuilder object, append to that.  Otherwise, create a new StringBuilder local to this
@@ -412,41 +419,49 @@ function Get-HtmlIndexCode
         {
             if ($childNode.ExistsOnDisk)
             {
-                $listTag = '<li'
+                # Generate the full HTML tags for this item.  Each LI tag should have a class attribute with a value of
+                # l<level number> <first word of folder name in lower case>, such as <li class="l1 foldername">.
+
+                # Leaf nodes should be output on one line, ie:
+                #
+                # <li class="l1 foldername"><span>FolderName</span><a href="Folder URI"></a></li>
+                #
+                # (The empty text between the <a> and </a> tags is intentional; the CSS / JavaScript code
+                # somehow turns that into a graphic link.)
+                
+                # For nodes that contain child folders, the <li> and </li> tags should be on separate lines, with
+                # another unordered list contained between them, ie:
+                #
+                # <li class="l1 foldername"><span>FolderName</span><a href="Folder URI"></a>
+                #   <ul>
+                #     <li class="l2 childfoldername"><span>ChildFolderName</span><a href="Folder URI"></a></li>
+                #   </ul>
+                # </li>                $listTag = '<li'
                 
                 # Folders that have existed for less than 30 days are flagged as "recent"; the CSS code of the html file
                 # causes them to display differently.
 
+                $listTag = '<li'
+
+                $classes = @(
+                    "l$Level",
+                    $childNode.Name.Split(' ')[0].ToLower()
+                )
+
                 if ($childNode.Age -is [System.Timespan] -and $childNode.Age.TotalDays -lt 30)
                 {
-                    $listTag += ' class="recent"'
+                    $classes += 'recent'
                 }
 
-                # The RecursiveCall switch indicates that we're not currently looking at the "top level" folders.
                 # If we are dealing with the top level, the client's requirements state that we should add an
                 # id="FolderName" attribute to the LI tag.
 
-                if (-not $RecursiveCall)
+                if ($Level -eq 1)
                 {
                     $listTag += " id=""$($childNode.Name)"""
                 }
 
-                $listTag += '>'
-
-                # Generate the full HTML tags for this item.  Leaf nodes should be output on one line, ie:
-                # <li><span>FolderName</span><a href="Folder URI"></a></li>
-                #
-                # (The empty text between the <a> and </a> tags is intentional; the CSS / JavaScript code
-                # somehow turns that into a graphic link.)
-                #
-                # For nodes that contain child folders, the <li> and </li> tags should be on separate lines, with
-                # another unordered list contained between them, ie:
-                #
-                # <li><span>FolderName</span><a href="Folder URI"></a>
-                #   <ul>
-                #     <li><span>FolderName</span><a href="Folder URI"></a></li>
-                #   </ul>
-                # </li>
+                $listTag += " class=""$($classes -join ' ')"">"
 
                 $childPath = Join-Path -Path $Path -ChildPath $childNode.Name
 
@@ -461,7 +476,7 @@ function Get-HtmlIndexCode
                     $Indent += 2
                     $null = $stringBuilder.AppendLine(("{0,$Indent}<ul>" -f ' '))
 
-                    $null = Get-HtmlIndexCode -Path $childPath -Node $childNode -Html $stringBuilder -Indent ($Indent + 2) -RecursiveCall
+                    $null = Get-HtmlIndexCode -Path $childPath -Node $childNode -Html $stringBuilder -Indent ($Indent + 2) -Level ($Level + 1)
 
                     $null = $stringBuilder.AppendLine("{0,$Indent}</ul>" -f ' ')
                     $Indent -= 2
