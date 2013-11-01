@@ -68,6 +68,20 @@
       display: none;
     }
 
+      li.l1
+      {
+          font-size:120%;
+      }
+      li.l2, li.l3
+      {
+          font-size:80%;
+      }
+
+      li.l1, li.l2, li.l3
+      {
+          color:#aaa;
+      }
+
     /* cursor style to suggest to use that they can click on list elements
     #dirListing li.parent { cursor: pointer;}*/
   </style>
@@ -121,8 +135,6 @@
       	$('#dirListing li').removeClass('status-open search-match search-fail').addClass('status-closed');
 	$('#search').val('');
       	});
-
-
       //
       //// Javascript run to add classes on the tree. Can they be added serverside?
       //
@@ -133,6 +145,18 @@
 
       /* give the directory browse links a fancy icon */
       $("#dirListing a").addClass( "glyphicon glyphicon-eye-open" );
+
+      // assign the "/" to jump to the search box
+        $(document).keyup(function(e){
+            var key = e.key || String.fromCharcode(e.keyCode);
+            var uCase = key.toUpperCase();
+            switch(uCase)
+            {
+                case "/":
+                    $("#search").select();
+                    break;
+            }
+        });
 
 
     });
