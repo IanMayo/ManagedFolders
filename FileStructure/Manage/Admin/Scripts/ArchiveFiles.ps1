@@ -168,6 +168,17 @@ if ($null -ne $LogFile)
     }
 }
 
+# Check for required privilege
+
+if (-not (whoami /priv | Select-String -Pattern 'SeCreateSymbolicLinkPrivilege' -SimpleMatch))
+{
+    Write-ErrorLog 'Current process does not have the "Create Symbolic Links" privilege.  By default, this script must be executed with the "Run As Administrator" option to enable this privilege.'
+    exit 1
+}
+
+# Process working directory changed to something local, to avoid potential complaints about UNC paths later from cmd.exe.
+[System.Environment]::CurrentDirectory = $env:windir
+
 # Read configuration file
 
 if (-not $PSBoundParameters.ContainsKey('ConfigFile'))
