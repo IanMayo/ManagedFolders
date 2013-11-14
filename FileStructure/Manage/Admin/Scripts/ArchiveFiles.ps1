@@ -152,6 +152,7 @@ function Import-IniFile
 #region Main script
 
 $scriptFolder = Split-Path -Path $MyInvocation.MyCommand.Path -Parent
+$outputCsv = Join-Path -Path $scriptFolder -ChildPath "$(Get-Date -Format 'yyyyMMdd')_Archive.csv"
 
 # Set up log file, if requested.
 
@@ -393,10 +394,21 @@ ForEach-Object {
 
             try
             {
-                Write-Debug "Archiving $($item.FullName)"
+                Write-Host "$(Get-Date -Format T) - Archiving '$($item.FullName)' to '$targetFolder'..."
 
                 Move-Item -Path $item.FullName -Destination $targetPath -Force -ErrorAction Stop
                 $null = cmd /c mklink $item.FullName $targetPath
+
+                New-Object psobject -Property @{
+                    Date = Get-Date -Format d
+                    Time = Get-Date -Format t
+                    FilePath = $targetFolder
+                    FileName = Split-Path -Path $targetPath -Leaf
+                    Size = $item.Length
+                } |
+                Export-Csv -Path $outputCsv -Append -NoTypeInformation
+
+                Write-Host "$(Get-Date -Format T) - Finished archiving '$targetPath'."
             }
             catch
             {
